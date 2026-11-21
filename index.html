@@ -275,7 +275,7 @@
                         <input type="file" id="model-file-input" accept=".stl,.3mf,.obj,.step,.stp,.amf,.gcode" class="hidden" onchange="validate3DFile(this)">
                         <i class="fa-solid fa-file-code text-3xl text-gray-500 group-hover:text-brand-400 mb-2 transition-colors"></i>
                         <p id="file-selected-name" class="text-sm font-medium text-gray-300">Klicke hier, um deine 3D-Druck-Datei auszuwählen</p>
-                        <p id="file-selected-meta" class="text-xs text-gray-500 mt-1">Andere Dateitypen (wie .exe, .zip, .pdf) werden blockiert.</p>
+                        <p id="file-selected-meta" class="text-xs text-gray-500 mt-1">Maximalgröße: 100 GB • Nur 3D-Druck-Dateien erlaubt.</p>
                     </div>
                 </div>
 
@@ -489,84 +489,52 @@
     <!-- ===================================================================== -->
     <!-- FIREBASE & ANWENDUNGSLOGIK                                            -->
     <!-- ===================================================================== -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, getDocs, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- FIREBASE, CLOUD STORAGE, INDEXEDDB (GITHUB PAGES) & ANWENDUNGSLOGIK   -->
+    <!-- ===================================================================== -->
+    <script>
+        // =========================================================================
+        // FÜR GITHUB PAGES: Trage hier deine eigenen Firebase-Daten ein, damit
+        // alle Nutzer weltweit deine Modelle sehen & bis zu 100 GB hochladen können.
+        // Solange hier "null" steht, startet die Seite SOFORT ohne Ladezeit!
+        // =========================================================================
+        const CUSTOM_FIREBASE_CONFIG = null;
 
-        // 1. Firebase Konfiguration & Initialisierung
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'makerforge-3d-default';
-        const firebaseConfig = JSON.parse(__firebase_config);
-        
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // 1. Globale App-Variablen & 100 GB Limit
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'makerforge-3d-github';
+        const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024 * 1024; // 100 GB Maximum
+        const ALLOWED_3D_EXTENSIONS = ['stl', '3mf', 'obj', 'step', 'stp', 'amf', 'gcode'];
 
-        // 2. Globale App-Variablen
-        let currentUser = null;
-        let creatorName = "Maker_" + Math.floor(1000 + Math.random() * 9000);
-        let allModels = [];
-        let activeCategory = "Alle";
-        let selected3DFile = null; // { name, ext, size, contentBase64 }
-        let selectedImageBase64 = "";
-
-        // Kategorien inklusive Weihnachten & MakerWorld-Klassikern
         const CATEGORIES = [
             { id: "Alle", label: "Alle Modelle", icon: "fa-border-all" },
             { id: "Weihnachten", label: "Weihnachten & Winter", icon: "fa-snowflake" },
-            { id: "Werkzeuge", label: "Werkzeuge & Organiser", icon: "fa-wrench" },
-            { id: "Spielzeug", label: "Spielzeug & Fidgets", icon: "fa-gamepad" },
-            { id: "Deko", label: "Deko & Kunst", icon: "fa-palette" },
+            { id: "Werkzeuge", label: "Werkzeuge & Halter", icon: "fa-wrench" },
+            { id: "Spielzeug", label: "Spielzeug & Flexi", icon: "fa-dragon" },
+            { id: "Deko", label: "Deko & Kunst", icon: "fa-wand-magic-sparkles" },
             { id: "Gadgets", label: "Technik & Gadgets", icon: "fa-microchip" },
-            { id: "Cosplay", label: "Cosplay & Requisiten", icon: "fa-mask" },
-            { id: "Haushalt", label: "Haushalt & Garten", icon: "fa-house" }
+            { id: "Haushalt", label: "Haushalt & Ordnung", icon: "fa-house" },
+            { id: "Cosplay", label: "Cosplay & Requisiten", icon: "fa-mask" }
         ];
 
-        // Erlaubte 3D-Druck-Dateiendungen
-        const ALLOWED_3D_EXTENSIONS = ['stl', '3mf', 'obj', 'step', 'stp', 'amf', 'gcode'];
+        let isCloudMode = Boolean(CUSTOM_FIREBASE_CONFIG && CUSTOM_FIREBASE_CONFIG.apiKey);
+        let db = null, storage = null, firestoreFns = null, storageFns = null;
 
-        // 3. Toast Benachrichtigungs-System (kein alert!)
-        window.showToast = function(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            
-            const colors = {
-                success: 'bg-emerald-950/95 border-emerald-500 text-emerald-100',
-                error: 'bg-rose-950/95 border-rose-500 text-rose-100',
-                info: 'bg-darkbg-800/95 border-brand-500 text-gray-100'
-            };
-            const icons = {
-                success: 'fa-circle-check text-emerald-400',
-                error: 'fa-circle-exclamation text-rose-400',
-                info: 'fa-circle-info text-brand-400'
-            };
+        let currentUser = null;
+        let creatorName = localStorage.getItem('mf_creator_name') || ("Maker_" + Math.floor(1000 + Math.random() * 9000));
+        let allModels = [];
+        let activeCategory = "Alle";
+        let selected3DFile = null;
+        let selectedImageBase64 = "";
 
-            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-xl backdrop-blur-md text-sm font-medium transform transition-all duration-300 translate-y-2 opacity-0 ${colors[type] || colors.info}`;
-            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info} text-base"></i><span>${message}</span>`;
-            
-            container.appendChild(toast);
-            requestAnimationFrame(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            });
-
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 4000);
-        };
-
-        // 4. UI-Kategorien initialisieren
+        // 2. Kategorien-Leiste & Dropdown initialisieren
         function initCategories() {
             const bar = document.getElementById('category-bar');
             const select = document.getElementById('model-category');
-            
             bar.innerHTML = '';
             select.innerHTML = '';
 
             CATEGORIES.forEach(cat => {
-                // Navigations-Pills
                 const btn = document.createElement('button');
-                const isActive = activeCategory === cat.id;
+                const isActive = cat.id === activeCategory;
                 btn.className = `flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                     isActive 
                     ? 'bg-brand-500 text-darkbg-900 shadow-md shadow-brand-500/20' 
@@ -575,12 +543,13 @@
                 btn.innerHTML = `<i class="fa-solid ${cat.icon}"></i><span>${cat.label}</span>`;
                 btn.onclick = () => {
                     activeCategory = cat.id;
+                    document.getElementById('current-view-title').firstElementChild.textContent =
+                        cat.id === "Alle" ? "Alle 3D-Druck-Modelle" : `Kategorie: ${cat.label}`;
                     initCategories();
                     renderModels();
                 };
                 bar.appendChild(btn);
 
-                // Dropdown im Upload-Formular (ohne "Alle")
                 if (cat.id !== "Alle") {
                     const opt = document.createElement('option');
                     opt.value = cat.id;
@@ -590,46 +559,127 @@
             });
         }
 
-        // 5. Authentifizierung & Firestore Echtzeit-Synchronisation
+        // 3. Sofortiger App-Start ohne Wartezeit
         async function initApp() {
             initCategories();
-            
-            try {
-                // Regel 3: Erst authentifizieren!
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (err) {
-                console.error("Auth Fehler:", err);
-                showToast("Verbindungsproblem bei der Anmeldung.", "error");
-            }
 
-            onAuthStateChanged(auth, async (user) => {
-                if (!user) return;
-                currentUser = user;
-                
-                document.getElementById('display-user-id').textContent = user.uid;
-                await loadCreatorProfile();
-                subscribeToModels();
+            const savedLocalId = localStorage.getItem('mf_local_uid') || ('maker_' + Math.random().toString(36).substring(2, 10));
+            localStorage.setItem('mf_local_uid', savedLocalId);
+            currentUser = { uid: savedLocalId };
+
+            document.getElementById('display-user-id').textContent = isCloudMode
+                ? `${currentUser.uid} (Cloud-Sync)`
+                : `${currentUser.uid} (GitHub Pages / Lokaler 100GB-Speicher)`;
+            updateHeaderProfileUI();
+
+            // Sofort lokale IndexedDB-Modelle laden & Ladebildschirm schließen
+            await loadLocalIndexedDBModels();
+
+            // Optional: Cloud-Sync im Hintergrund starten, falls CUSTOM_FIREBASE_CONFIG gesetzt ist
+            if (isCloudMode) {
+                startBackgroundCloudSync();
+            }
+        }
+
+        async function startBackgroundCloudSync() {
+            try {
+                const [{ initializeApp }, authMod, fsMod, stMod] = await Promise.all([
+                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
+                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
+                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"),
+                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js")
+                ]);
+
+                const app = initializeApp(CUSTOM_FIREBASE_CONFIG);
+                const auth = authMod.getAuth(app);
+                db = fsMod.getFirestore(app);
+                storage = stMod.getStorage(app);
+                firestoreFns = fsMod;
+                storageFns = stMod;
+
+                await authMod.signInAnonymously(auth);
+                authMod.onAuthStateChanged(auth, (user) => {
+                    if (!user) return;
+                    currentUser = user;
+                    document.getElementById('display-user-id').textContent = user.uid;
+
+                    const modelsCol = fsMod.collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
+                    fsMod.onSnapshot(modelsCol, (snapshot) => {
+                        allModels = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                        renderModels();
+                    }, (err) => {
+                        console.warn("Cloud-Sync Fehler, bleibe im lokalen Modus:", err);
+                        isCloudMode = false;
+                    });
+                });
+            } catch (err) {
+                console.warn("Cloud-Module konnten nicht geladen werden, nutze lokalen Speicher:", err);
+                isCloudMode = false;
+            }
+        }
+
+        // 4. IndexedDB Helfer für dauerhafte Speicherung auf GitHub Pages (bis 100 GB)
+        function openLocalDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open('MakerForge3D_Storage', 1);
+                req.onupgradeneeded = (e) => {
+                    const idb = e.target.result;
+                    if (!idb.objectStoreNames.contains('models3d')) {
+                        idb.createObjectStore('models3d', { keyPath: 'id' });
+                    }
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
             });
         }
 
-        // Creator-Profil aus Firestore laden
-        async function loadCreatorProfile() {
-            if (!currentUser) return;
+        async function loadLocalIndexedDBModels() {
+            const loadingEl = document.getElementById('loading-state');
             try {
-                const profilesRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'profile');
-                const snap = await getDocs(profilesRef);
-                if (!snap.empty) {
-                    const data = snap.docs[0].data();
-                    if (data.name) creatorName = data.name;
-                }
-            } catch (e) {
-                console.warn("Profil konnte nicht geladen werden, nutze Standardnamen.", e);
+                const idb = await openLocalDB();
+                const tx = idb.transaction('models3d', 'readonly');
+                const store = tx.objectStore('models3d');
+                const req = store.getAll();
+                req.onsuccess = async () => {
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                    const items = req.result || [];
+                    if (items.length === 0 && !window._seededLocal) {
+                        window._seededLocal = true;
+                        await seedDemoModels();
+                        return;
+                    }
+                    allModels = items;
+                    renderModels();
+                };
+                req.onerror = () => {
+                    if (loadingEl) loadingEl.classList.add('hidden');
+                    renderModels();
+                };
+            } catch (err) {
+                console.error("IndexedDB Fehler:", err);
+                if (loadingEl) loadingEl.classList.add('hidden');
+                renderModels();
             }
-            updateHeaderProfileUI();
+        }
+
+        async function saveLocalIndexedDBModel(modelObj) {
+            const idb = await openLocalDB();
+            return new Promise((resolve, reject) => {
+                const tx = idb.transaction('models3d', 'readwrite');
+                tx.objectStore('models3d').put(modelObj);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function deleteLocalIndexedDBModel(id) {
+            const idb = await openLocalDB();
+            return new Promise((resolve, reject) => {
+                const tx = idb.transaction('models3d', 'readwrite');
+                tx.objectStore('models3d').delete(id);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
         }
 
         function updateHeaderProfileUI() {
@@ -638,74 +688,25 @@
             document.getElementById('header-avatar').textContent = creatorName.substring(0, 2).toUpperCase();
         }
 
-        // Creator-Namen speichern
-        window.saveCreatorProfile = async function(e) {
+        window.saveCreatorProfile = function(e) {
             e.preventDefault();
-            if (!currentUser) return;
             const newName = document.getElementById('creator-name-input').value.trim();
             if (!newName) return;
 
             creatorName = newName;
+            localStorage.setItem('mf_creator_name', creatorName);
             updateHeaderProfileUI();
             closeProfileModal();
-
-            try {
-                const profilesRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'profile');
-                const snap = await getDocs(profilesRef);
-                if (!snap.empty) {
-                    await updateDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', snap.docs[0].id), {
-                        name: creatorName,
-                        updatedAt: Date.now()
-                    });
-                } else {
-                    await addDoc(profilesRef, {
-                        name: creatorName,
-                        createdAt: Date.now()
-                    });
-                }
-                showToast(`Creator-Name auf "${creatorName}" geändert!`, "success");
-            } catch (err) {
-                console.error("Fehler beim Speichern des Namens:", err);
-                showToast("Name lokal aktualisiert.", "info");
-            }
+            showToast(`Creator-Name auf "${creatorName}" gespeichert!`, "success");
         };
 
-        // 6. Echtzeit-Listener für alle öffentlichen 3D-Modelle aller Creator
-        function subscribeToModels() {
-            if (!currentUser) return;
-            // Regel 1: Strikter Pfad für öffentliche Community-Daten
-            const modelsCol = collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
-
-            // Regel 2: Keine komplexen Queries (kein orderBy/where), Sortierung in JS
-            onSnapshot(modelsCol, async (snapshot) => {
-                document.getElementById('loading-state').classList.add('hidden');
-                
-                // Falls die Datenbank beim allerersten Start noch leer ist, Beispiel-Modelle anlegen
-                if (snapshot.empty && !window._seededInitialModels) {
-                    window._seededInitialModels = true;
-                    await seedDemoModels(modelsCol);
-                    return;
-                }
-
-                allModels = snapshot.docs.map(d => ({
-                    id: d.id,
-                    ...d.data()
-                }));
-
-                renderModels();
-            }, (error) => {
-                console.error("Firestore Snapshot Fehler:", error);
-                document.getElementById('loading-state').classList.add('hidden');
-                showToast("Fehler beim Laden der 3D-Modelle.", "error");
-            });
-        }
-
-        // Initiale Beispiel-Modelle (inkl. Weihnachten), damit die Plattform sofort lebendig aussieht
-        async function seedDemoModels(modelsCol) {
+        // 5. Demo-Modelle (inkl. Weihnachten)
+        async function seedDemoModels() {
             const sampleStlContent = btoa("solid MakerForge_Demo\n  facet normal 0.0 0.0 1.0\n    outer loop\n      vertex 0.0 0.0 0.0\n      vertex 10.0 0.0 0.0\n      vertex 0.0 10.0 0.0\n    endloop\n  endfacet\nendsolid MakerForge_Demo");
-            
+
             const demos = [
                 {
+                    id: "demo_1",
                     title: "Gelenkiger Weihnachts-Schneemann (Print-in-Place)",
                     category: "Weihnachten",
                     creatorName: "SnowPrint_Studio",
@@ -725,6 +726,7 @@
                     createdAt: Date.now() - 86400000 * 2
                 },
                 {
+                    id: "demo_2",
                     title: "Modularer Düsen- & Werkzeug-Halter für 3D-Drucker",
                     category: "Werkzeuge",
                     creatorName: "MechEngineer",
@@ -744,6 +746,7 @@
                     createdAt: Date.now() - 86400000
                 },
                 {
+                    id: "demo_3",
                     title: "Leuchtender Weihnachtsstern / Baumspitze (Vase Mode)",
                     category: "Weihnachten",
                     creatorName: "Lumina3D",
@@ -765,51 +768,42 @@
             ];
 
             for (const item of demos) {
-                await addDoc(modelsCol, item);
+                await saveLocalIndexedDBModel(item);
             }
+            allModels = demos;
+            renderModels();
         }
 
-        // 7. Modelle filtern, sortieren & rendern
+        // 6. Modelle filtern, sortieren & rendern
         window.renderModels = function() {
             const grid = document.getElementById('models-grid');
             const emptyState = document.getElementById('empty-state');
+            const countBadge = document.getElementById('models-count-badge');
             const searchTerm = document.getElementById('search-input').value.trim().toLowerCase();
             const sortBy = document.getElementById('sort-select').value;
 
-            // Such-Clear-Button steuern
-            const clearBtn = document.getElementById('clear-search-btn');
-            if (searchTerm.length > 0) {
-                clearBtn.classList.remove('hidden');
-            } else {
-                clearBtn.classList.add('hidden');
-            }
+            document.getElementById('clear-search-btn').classList.toggle('hidden', searchTerm.length === 0);
 
-            // Filtern nach Kategorie & Suchbegriff
             let filtered = allModels.filter(m => {
-                const matchesCategory = activeCategory === "Alle" || m.category === activeCategory;
-                const matchesSearch = !searchTerm || 
+                const matchesCat = activeCategory === "Alle" || m.category === activeCategory;
+                const matchesSearch = !searchTerm ||
                     (m.title && m.title.toLowerCase().includes(searchTerm)) ||
                     (m.creatorName && m.creatorName.toLowerCase().includes(searchTerm)) ||
-                    (m.category && m.category.toLowerCase().includes(searchTerm)) ||
-                    (m.tutorial && m.tutorial.toLowerCase().includes(searchTerm));
-                return matchesCategory && matchesSearch;
+                    (m.tutorial && m.tutorial.toLowerCase().includes(searchTerm)) ||
+                    (m.category && m.category.toLowerCase().includes(searchTerm));
+                return matchesCat && matchesSearch;
             });
 
-            // Sortieren
             filtered.sort((a, b) => {
                 if (sortBy === 'downloads') return (b.downloads || 0) - (a.downloads || 0);
                 if (sortBy === 'likes') return (b.likes || 0) - (a.likes || 0);
                 return (b.createdAt || 0) - (a.createdAt || 0);
             });
 
-            // Titel & Zähler aktualisieren
-            const catObj = CATEGORIES.find(c => c.id === activeCategory);
-            document.querySelector('#current-view-title span').textContent = 
-                activeCategory === "Alle" ? "Alle 3D-Druck-Modelle" : `Kategorie: ${catObj ? catObj.label : activeCategory}`;
-            document.getElementById('models-count-badge').textContent = filtered.length;
+            countBadge.textContent = filtered.length;
+            grid.innerHTML = '';
 
             if (filtered.length === 0) {
-                grid.innerHTML = '';
                 emptyState.classList.remove('hidden');
                 emptyState.classList.add('flex');
                 return;
@@ -817,60 +811,47 @@
 
             emptyState.classList.add('hidden');
             emptyState.classList.remove('flex');
-            grid.innerHTML = '';
 
             filtered.forEach(model => {
                 const fallbackImg = `https://placehold.co/600x400/1e222b/10b981?text=${encodeURIComponent(model.fileExt || '3D')}+Modell`;
-                const imgSrc = model.imageUrl && model.imageUrl.trim() !== "" ? model.imageUrl : fallbackImg;
+                const imgSrc = model.imageUrl || fallbackImg;
 
                 const card = document.createElement('div');
-                card.className = "group bg-darkbg-800 border border-gray-800 hover:border-brand-500/60 rounded-2xl overflow-hidden flex flex-col shadow-lg hover:shadow-brand-500/10 transition-all duration-300 cursor-pointer";
-                card.onclick = () => openDetailModal(model.id);
+                card.className = "group bg-darkbg-800 border border-gray-800 hover:border-brand-500/60 rounded-2xl overflow-hidden shadow-lg hover:shadow-brand-500/10 transition-all duration-300 flex flex-col cursor-pointer";
+                card.onclick = () => openDetailModal(model);
 
                 card.innerHTML = `
-                    <!-- Vorschaubild -->
-                    <div class="relative aspect-[4/3] bg-darkbg-900 overflow-hidden">
+                    <div class="relative aspect-[16/10] bg-darkbg-900 overflow-hidden">
                         <img src="${imgSrc}" alt="${escapeHtml(model.title)}" onerror="this.src='${fallbackImg}'"
                              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                        
-                        <!-- Dateiformat Badge -->
-                        <span class="absolute top-3 right-3 bg-darkbg-900/85 backdrop-blur-md text-brand-400 border border-brand-500/30 font-mono text-[11px] font-bold px-2.5 py-1 rounded-lg shadow">
+                        <div class="absolute top-3 left-3 flex items-center gap-1.5">
+                            <span class="bg-black/75 backdrop-blur-md text-gray-100 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-white/10">
+                                ${escapeHtml(model.category || 'Allgemein')}
+                            </span>
+                        </div>
+                        <span class="absolute bottom-3 right-3 bg-brand-500 text-darkbg-900 font-mono text-[11px] font-extrabold px-2 py-0.5 rounded-md shadow">
                             .${escapeHtml(model.fileExt || 'STL')}
                         </span>
-
-                        <!-- Kategorie Badge -->
-                        <span class="absolute bottom-3 left-3 bg-black/75 backdrop-blur-md text-gray-200 text-[11px] font-medium px-2.5 py-1 rounded-lg">
-                            ${escapeHtml(model.category || 'Allgemein')}
-                        </span>
                     </div>
-
-                    <!-- Karten-Inhalt -->
                     <div class="p-4 flex-1 flex flex-col justify-between">
                         <div>
-                            <h3 class="font-bold text-gray-100 group-hover:text-brand-400 transition-colors line-clamp-2 text-base mb-1.5">
+                            <h3 class="font-bold text-white text-base line-clamp-1 group-hover:text-brand-400 transition-colors">
                                 ${escapeHtml(model.title)}
                             </h3>
-                            <p class="text-xs text-gray-400 line-clamp-2 mb-3">
-                                ${escapeHtml(model.tutorial || 'Kein Tutorial hinterlegt.')}
+                            <p class="text-xs text-gray-400 line-clamp-2 mt-1.5 leading-relaxed">
+                                ${escapeHtml(model.tutorial || 'Keine Anleitung vorhanden.')}
                             </p>
                         </div>
-
-                        <!-- Creator & Statistiken -->
-                        <div class="pt-3 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-400">
-                            <div class="flex items-center gap-2 truncate max-w-[55%]">
+                        <div class="flex items-center justify-between pt-3 mt-4 border-t border-gray-800/80 text-xs text-gray-400">
+                            <div class="flex items-center gap-2 truncate">
                                 <div class="w-5 h-5 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-[10px] font-bold shrink-0">
-                                    ${escapeHtml((model.creatorName || 'U').substring(0, 1).toUpperCase())}
+                                    ${escapeHtml((model.creatorName || 'M').substring(0, 1).toUpperCase())}
                                 </div>
-                                <span class="truncate font-medium text-gray-300">${escapeHtml(model.creatorName || 'Unbekannt')}</span>
+                                <span class="truncate max-w-[110px] font-medium text-gray-300">${escapeHtml(model.creatorName || 'Unbekannt')}</span>
                             </div>
-
                             <div class="flex items-center gap-3 shrink-0">
-                                <span class="flex items-center gap-1" title="Likes">
-                                    <i class="fa-solid fa-heart text-rose-500/80"></i> ${model.likes || 0}
-                                </span>
-                                <span class="flex items-center gap-1" title="Downloads">
-                                    <i class="fa-solid fa-download text-brand-400"></i> ${model.downloads || 0}
-                                </span>
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-heart text-rose-500"></i> ${model.likes || 0}</span>
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-download text-brand-400"></i> ${model.downloads || 0}</span>
                             </div>
                         </div>
                     </div>
@@ -879,7 +860,7 @@
             });
         };
 
-        // 8. Strikte Validierung für 3D-Druck-Dateien beim Upload
+        // 7. Strikte Validierung für 3D-Druck-Dateien (bis 100 GB)
         window.validate3DFile = function(input) {
             const file = input.files[0];
             const nameLabel = document.getElementById('file-selected-name');
@@ -894,7 +875,6 @@
             const parts = file.name.split('.');
             const ext = parts.length > 1 ? parts.pop().toLowerCase() : '';
 
-            // Prüfen, ob es eine gültige 3D-Druck-Datei ist
             if (!ALLOWED_3D_EXTENSIONS.includes(ext)) {
                 input.value = '';
                 selected3DFile = null;
@@ -906,99 +886,65 @@
                 return;
             }
 
-            // Größenprüfung (Firestore Dokumenten-Limit liegt bei 1 MB -> max. ~700 KB Datei)
-            if (file.size > 720 * 1024) {
+            if (file.size > MAX_FILE_SIZE_BYTES) {
                 input.value = '';
                 selected3DFile = null;
                 dropZone.classList.add('border-rose-500');
                 nameLabel.innerHTML = `<span class="text-rose-400 font-bold">Datei zu groß (${formatBytes(file.size)})!</span>`;
-                metaLabel.textContent = "Bitte wähle eine kompakte 3D-Datei unter 700 KB für die Cloud-Speicherung.";
-                showToast("Datei überschreitet das Cloud-Limit von 700 KB.", "error");
+                metaLabel.textContent = "Das maximale Limit liegt bei 100 GB pro 3D-Datei.";
+                showToast("Datei überschreitet das 100-GB-Limit.", "error");
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const base64Data = e.target.result.split(',')[1];
-                selected3DFile = {
-                    name: file.name,
-                    ext: ext.toUpperCase(),
-                    size: formatBytes(file.size),
-                    contentBase64: base64Data
-                };
-
-                dropZone.classList.remove('border-rose-500', 'border-gray-600');
-                dropZone.classList.add('border-brand-500', 'bg-brand-500/5');
-                nameLabel.innerHTML = `<i class="fa-solid fa-check-circle text-brand-400 mr-1"></i> <span class="text-white font-bold">${escapeHtml(file.name)}</span>`;
-                metaLabel.textContent = `Format: .${ext.toUpperCase()} • Größe: ${formatBytes(file.size)} • Bereit zum Upload`;
+            selected3DFile = {
+                name: file.name,
+                ext: ext.toUpperCase(),
+                size: formatBytes(file.size),
+                rawFile: file
             };
-            reader.readAsDataURL(file);
+
+            dropZone.classList.remove('border-rose-500', 'border-gray-600');
+            dropZone.classList.add('border-brand-500', 'bg-brand-500/5');
+            nameLabel.innerHTML = `<i class="fa-solid fa-check-circle text-brand-400 mr-1"></i> <span class="text-white font-bold">${escapeHtml(file.name)}</span>`;
+            metaLabel.textContent = `Format: .${ext.toUpperCase()} • Größe: ${formatBytes(file.size)} • Bereit zum Upload (Max. 100 GB)`;
         };
 
-        // 9. Bild-Upload (verkleinert automatisch für schnelle Speicherung) oder Bild-URL
+        // Bildauswahl & Vorschau
         window.handleImageSelection = function(input) {
             const file = input.files[0];
             if (!file) return;
-
             document.getElementById('image-file-label').textContent = file.name;
-            document.getElementById('model-image-url').value = '';
-
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = function() {
-                    // Bild auf max. 800px Breite skalieren, damit es problemlos in Firestore passt
-                    const canvas = document.createElement('canvas');
-                    const maxWidth = 800;
-                    const scale = Math.min(1, maxWidth / img.width);
-                    canvas.width = img.width * scale;
-                    canvas.height = img.height * scale;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
-                    selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.75);
-                    showImagePreview(selectedImageBase64);
-                };
-                img.src = e.target.result;
+            reader.onload = (ev) => {
+                selectedImageBase64 = ev.target.result;
+                document.getElementById('image-preview-img').src = selectedImageBase64;
+                document.getElementById('image-preview-container').classList.remove('hidden');
             };
             reader.readAsDataURL(file);
         };
 
         window.previewImageUrl = function(url) {
-            if (url && url.trim().startsWith('http')) {
-                selectedImageBase64 = '';
-                document.getElementById('model-image-input').value = '';
-                document.getElementById('image-file-label').textContent = 'Bild vom Gerät wählen';
-                showImagePreview(url.trim());
-            } else if (!url) {
-                clearSelectedImage();
+            if (!url.trim()) {
+                if (!selectedImageBase64) document.getElementById('image-preview-container').classList.add('hidden');
+                return;
             }
+            selectedImageBase64 = "";
+            document.getElementById('image-preview-img').src = url.trim();
+            document.getElementById('image-preview-container').classList.remove('hidden');
         };
 
-        function showImagePreview(src) {
-            const container = document.getElementById('image-preview-container');
-            const img = document.getElementById('image-preview-img');
-            img.src = src;
-            container.classList.remove('hidden');
-        }
-
         window.clearSelectedImage = function() {
-            selectedImageBase64 = '';
+            selectedImageBase64 = "";
             document.getElementById('model-image-input').value = '';
             document.getElementById('model-image-url').value = '';
-            document.getElementById('image-file-label').textContent = 'Bild vom Gerät wählen';
+            document.getElementById('image-file-label').textContent = "Bild vom Gerät wählen";
             document.getElementById('image-preview-container').classList.add('hidden');
         };
 
-        // 10. Neues 3D-Modell dauerhaft in Firestore veröffentlichen
+        // 8. Neues 3D-Modell speichern
         window.handleModelUpload = async function(e) {
             e.preventDefault();
-            if (!currentUser) {
-                showToast("Bitte warte einen Moment, bis die Verbindung steht.", "error");
-                return;
-            }
-
-            if (!selected3DFile) {
+            if (!selected3DFile || !selected3DFile.rawFile) {
                 showToast("Bitte wähle zuerst eine gültige 3D-Druck-Datei (.stl, .3mf, .obj, .step) aus!", "error");
                 return;
             }
@@ -1006,7 +952,7 @@
             const btn = document.getElementById('submit-upload-btn');
             const originalHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Wird veröffentlicht...</span>`;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Speichere 3D-Datei (${selected3DFile.size})...</span>`;
 
             try {
                 const title = document.getElementById('model-title').value.trim();
@@ -1015,7 +961,7 @@
                 const urlInput = document.getElementById('model-image-url').value.trim();
                 const finalImage = selectedImageBase64 || urlInput || "";
 
-                const newModel = {
+                const baseModelData = {
                     title: title,
                     category: category,
                     creatorName: creatorName,
@@ -1023,7 +969,6 @@
                     fileName: selected3DFile.name,
                     fileExt: selected3DFile.ext,
                     fileSize: selected3DFile.size,
-                    fileDataBase64: selected3DFile.contentBase64,
                     imageUrl: finalImage,
                     material: document.getElementById('print-material').value,
                     layerHeight: document.getElementById('print-layer').value,
@@ -1035,15 +980,34 @@
                     createdAt: Date.now()
                 };
 
-                const modelsCol = collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
-                await addDoc(modelsCol, newModel);
+                if (isCloudMode && storageFns && firestoreFns) {
+                    const uniquePath = `artifacts/${appId}/public/models3d/${Date.now()}_${selected3DFile.name}`;
+                    const fileRef = storageFns.ref(storage, uniquePath);
+                    await storageFns.uploadBytes(fileRef, selected3DFile.rawFile);
+                    const downloadUrl = await storageFns.getDownloadURL(fileRef);
 
-                showToast("Dein 3D-Modell wurde erfolgreich veröffentlicht!", "success");
+                    const modelsCol = firestoreFns.collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
+                    await firestoreFns.addDoc(modelsCol, {
+                        ...baseModelData,
+                        fileDownloadUrl: downloadUrl,
+                        storagePath: uniquePath
+                    });
+                } else {
+                    const localId = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+                    await saveLocalIndexedDBModel({
+                        ...baseModelData,
+                        id: localId,
+                        fileBlob: selected3DFile.rawFile
+                    });
+                    await loadLocalIndexedDBModels();
+                }
+
+                showToast("Dein 3D-Modell wurde erfolgreich gespeichert!", "success");
                 resetUploadForm();
                 closeUploadModal();
             } catch (err) {
                 console.error("Upload Fehler:", err);
-                showToast("Fehler beim Speichern. Ist die Datei oder das Bild zu groß?", "error");
+                showToast("Fehler beim Speichern der 3D-Datei.", "error");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalHtml;
@@ -1058,46 +1022,35 @@
             dropZone.classList.remove('border-brand-500', 'border-rose-500', 'bg-brand-500/5');
             dropZone.classList.add('border-gray-600');
             document.getElementById('file-selected-name').textContent = "Klicke hier, um deine 3D-Druck-Datei auszuwählen";
-            document.getElementById('file-selected-meta').textContent = "Andere Dateitypen (wie .exe, .zip, .pdf) werden blockiert.";
+            document.getElementById('file-selected-meta').textContent = "Maximalgröße: 100 GB • Nur 3D-Druck-Dateien erlaubt.";
         }
 
-        // 11. Detail-Ansicht öffnen, Download & Like ausführen
-        window.openDetailModal = function(modelId) {
-            const model = allModels.find(m => m.id === modelId);
-            if (!model) return;
-
-            const fallbackImg = `https://placehold.co/800x500/1e222b/10b981?text=${encodeURIComponent(model.fileExt || '3D')}+Modell`;
-            const imgEl = document.getElementById('detail-image');
-            imgEl.src = (model.imageUrl && model.imageUrl.trim() !== "") ? model.imageUrl : fallbackImg;
-            imgEl.onerror = () => { imgEl.src = fallbackImg; };
-
+        // 9. Detail-Modal, Download, Like & Löschen
+        window.openDetailModal = function(model) {
+            const fallbackImg = `https://placehold.co/800x450/1e222b/10b981?text=${encodeURIComponent(model.fileExt || '3D')}+Modell`;
             document.getElementById('detail-category-badge').textContent = model.category || 'Allgemein';
             document.getElementById('detail-title').textContent = model.title;
-            document.getElementById('detail-file-ext-badge').textContent = `.${model.fileExt || 'STL'}`;
-            document.getElementById('detail-creator-name').textContent = model.creatorName || 'Unbekannt';
-            document.getElementById('detail-creator-avatar').textContent = (model.creatorName || 'U').substring(0, 2).toUpperCase();
-            
-            const dateStr = model.createdAt ? new Date(model.createdAt).toLocaleDateString('de-DE') : 'Heute';
-            document.getElementById('detail-date').textContent = dateStr;
+            const detailImg = document.getElementById('detail-image');
+            detailImg.src = model.imageUrl || fallbackImg;
+            detailImg.onerror = () => { detailImg.src = fallbackImg; };
 
+            document.getElementById('detail-file-ext-badge').textContent = `.${model.fileExt || 'STL'}`;
+            document.getElementById('detail-creator-avatar').textContent = (model.creatorName || 'M').substring(0, 2).toUpperCase();
+            document.getElementById('detail-creator-name').textContent = model.creatorName || 'Unbekannt';
+            document.getElementById('detail-date').textContent = model.createdAt ? new Date(model.createdAt).toLocaleDateString('de-DE') : '';
             document.getElementById('detail-filename').textContent = model.fileName || 'modell.stl';
-            document.getElementById('detail-filesize').textContent = model.fileSize || 'Unbekannt';
+            document.getElementById('detail-filesize').textContent = model.fileSize || '';
             document.getElementById('detail-likes-count').textContent = model.likes || 0;
             document.getElementById('detail-downloads-count').textContent = model.downloads || 0;
-
             document.getElementById('detail-material').textContent = model.material || 'PLA';
             document.getElementById('detail-layer').textContent = model.layerHeight || '0.20 mm';
             document.getElementById('detail-infill').textContent = model.infill || '15%';
             document.getElementById('detail-supports').textContent = model.supports || 'Nein';
-            document.getElementById('detail-tutorial').textContent = model.tutorial || 'Keine Anleitung vorhanden.';
+            document.getElementById('detail-tutorial').textContent = model.tutorial || 'Keine Anleitung hinterlegt.';
 
-            // Download-Button verknüpfen
             document.getElementById('detail-download-btn').onclick = () => download3DModel(model);
-
-            // Like-Button verknüpfen
             document.getElementById('detail-like-btn').onclick = () => like3DModel(model);
 
-            // Löschen-Button anzeigen, falls der aktuelle Nutzer der Ersteller ist
             const ownerActions = document.getElementById('detail-owner-actions');
             if (currentUser && model.creatorId === currentUser.uid) {
                 ownerActions.classList.remove('hidden');
@@ -1111,61 +1064,109 @@
             document.getElementById('detail-modal').classList.remove('hidden');
         };
 
-        // Echter Datei-Download der 3D-Druck-Datei
+        window.closeDetailModal = () => document.getElementById('detail-modal').classList.add('hidden');
+        window.openUploadModal = () => document.getElementById('upload-modal').classList.remove('hidden');
+        window.closeUploadModal = () => document.getElementById('upload-modal').classList.add('hidden');
+        window.openProfileModal = () => document.getElementById('profile-modal').classList.remove('hidden');
+        window.closeProfileModal = () => document.getElementById('profile-modal').classList.add('hidden');
+
+        window.clearSearch = function() {
+            document.getElementById('search-input').value = '';
+            renderModels();
+        };
+
+        window.resetFilters = function() {
+            activeCategory = "Alle";
+            document.getElementById('search-input').value = '';
+            document.getElementById('current-view-title').firstElementChild.textContent = "Alle 3D-Druck-Modelle";
+            initCategories();
+            renderModels();
+        };
+
         async function download3DModel(model) {
             try {
-                const byteCharacters = atob(model.fileDataBase64 || "");
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                const fileName = model.fileName || `makerforge_model.${(model.fileExt || 'stl').toLowerCase()}`;
+
+                if (model.fileDownloadUrl) {
+                    const link = document.createElement('a');
+                    link.href = model.fileDownloadUrl;
+                    link.target = '_blank';
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else if (model.fileBlob) {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(model.fileBlob);
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                } else {
+                    const byteCharacters = atob(model.fileDataBase64 || "");
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/octet-stream' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
                 }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: 'application/octet-stream' });
 
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = model.fileName || `makerforge_model.${(model.fileExt || 'stl').toLowerCase()}`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(link.href);
+                showToast(`Download gestartet: ${fileName}`, "success");
 
-                showToast(`Download gestartet: ${link.download}`, "success");
-
-                // Download-Zähler in Firestore erhöhen
-                if (currentUser) {
-                    const modelRef = doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
-                    await updateDoc(modelRef, {
-                        downloads: increment(1)
-                    });
-                    document.getElementById('detail-downloads-count').textContent = (model.downloads || 0) + 1;
+                if (isCloudMode && firestoreFns) {
+                    const modelRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
+                    await firestoreFns.updateDoc(modelRef, { downloads: firestoreFns.increment(1) });
+                } else {
+                    model.downloads = (model.downloads || 0) + 1;
+                    await saveLocalIndexedDBModel(model);
+                    renderModels();
                 }
+                document.getElementById('detail-downloads-count').textContent = model.downloads;
             } catch (err) {
                 console.error("Download Fehler:", err);
                 showToast("Fehler beim Herunterladen der 3D-Datei.", "error");
             }
         }
 
-        // Like vergeben
         async function like3DModel(model) {
-            if (!currentUser) return;
             try {
-                const modelRef = doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
-                await updateDoc(modelRef, {
-                    likes: increment(1)
-                });
-                document.getElementById('detail-likes-count').textContent = (model.likes || 0) + 1;
+                if (isCloudMode && firestoreFns) {
+                    const modelRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
+                    await firestoreFns.updateDoc(modelRef, { likes: firestoreFns.increment(1) });
+                } else {
+                    model.likes = (model.likes || 0) + 1;
+                    await saveLocalIndexedDBModel(model);
+                    renderModels();
+                }
+                document.getElementById('detail-likes-count').textContent = model.likes;
                 showToast("Like vergeben! Danke für deine Unterstützung.", "success");
             } catch (err) {
                 console.error("Like Fehler:", err);
             }
         }
 
-        // Eigenes Modell löschen
         async function deleteOwnModel(modelId) {
-            if (!currentUser) return;
             try {
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'models3d', modelId));
+                const targetModel = allModels.find(m => m.id === modelId);
+                if (isCloudMode && firestoreFns) {
+                    if (targetModel && targetModel.storagePath && storageFns) {
+                        try {
+                            await storageFns.deleteObject(storageFns.ref(storage, targetModel.storagePath));
+                        } catch (e) {}
+                    }
+                    await firestoreFns.deleteDoc(firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', modelId));
+                } else {
+                    await deleteLocalIndexedDBModel(modelId);
+                    await loadLocalIndexedDBModels();
+                }
                 closeDetailModal();
                 showToast("Dein Modell wurde gelöscht.", "info");
             } catch (err) {
@@ -1174,47 +1175,58 @@
             }
         }
 
-        // 12. Hilfsfunktionen & Modal-Steuerung
-        window.openProfileModal = () => document.getElementById('profile-modal').classList.remove('hidden');
-        window.closeProfileModal = () => document.getElementById('profile-modal').classList.add('hidden');
-        
-        window.openUploadModal = () => document.getElementById('upload-modal').classList.remove('hidden');
-        window.closeUploadModal = () => document.getElementById('upload-modal').classList.add('hidden');
-        
-        window.closeDetailModal = () => document.getElementById('detail-modal').classList.add('hidden');
-
-        window.clearSearch = () => {
-            document.getElementById('search-input').value = '';
-            renderModels();
-        };
-
-        window.resetFilters = () => {
-            activeCategory = "Alle";
-            document.getElementById('search-input').value = '';
-            initCategories();
-            renderModels();
-        };
-
-        document.getElementById('search-input').addEventListener('input', () => {
-            renderModels();
-        });
-
+        // 10. Hilfsfunktionen
         function formatBytes(bytes) {
-            if (bytes === 0) return '0 Bytes';
+            if (!bytes || bytes === 0) return '0 Bytes';
             const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB'];
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        function escapeHtml(text) {
-            if (!text) return '';
-            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-            return String(text).replace(/[&<>"']/g, m => map[m]);
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
 
-        // App starten
-        initApp();
+        function showToast(message, type = "info") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = {
+                success: "bg-darkbg-800 border-brand-500 text-white",
+                error: "bg-darkbg-800 border-rose-500 text-rose-200",
+                info: "bg-darkbg-800 border-gray-600 text-gray-200"
+            };
+            const icons = {
+                success: "fa-circle-check text-brand-400",
+                error: "fa-circle-exclamation text-rose-400",
+                info: "fa-circle-info text-blue-400"
+            };
+
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl text-sm font-medium transition-all duration-300 ${colors[type] || colors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        document.getElementById('search-input').addEventListener('input', renderModels);
+
+        // App direkt beim Laden starten
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
     </script>
 </body>
 </html>
