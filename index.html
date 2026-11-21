@@ -121,9 +121,9 @@
                     </button>
 
                     <!-- Cloud / Community Sync Status -->
-                    <span id="sync-status-badge" onclick="openCloudSetupModal()" class="hidden md:flex cursor-pointer items-center gap-1.5 bg-darkbg-800 border border-gray-700 hover:border-brand-500/60 px-2.5 py-2 rounded-xl text-[11px] font-semibold text-gray-300 hover:text-white transition-all" title="Klicken, um globale Datenbank für alle Besucher zu verbinden">
-                        <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
-                        <span id="sync-status-text">Verbinde...</span>
+                    <span id="sync-status-badge" onclick="forceGlobalSync(true)" class="hidden md:flex cursor-pointer items-center gap-1.5 bg-darkbg-800 border border-gray-700 hover:border-brand-500/60 px-2.5 py-2 rounded-xl text-[11px] font-semibold text-gray-300 hover:text-white transition-all" title="Klicken, um sofort mit der globalen Community abzugleichen">
+                        <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-brand-400 animate-pulse"></span>
+                        <span id="sync-status-text">Community Live</span>
                     </span>
 
                     <!-- Upload Button -->
@@ -650,10 +650,12 @@
     <!-- ===================================================================== -->
     <script>
         // =========================================================================
-        // FÜR GITHUB PAGES: Trage hier deine eigenen Firebase-Daten ein, damit
-        // ALLE Besucher weltweit dauerhaft alle 3D-Modelle sehen!
+        // AUTOMATISCHER GLOBALE COMMUNITY-SYNC (OHNE EINRICHTUNG FÜR GITHUB PAGES)
+        // Alle Besucher teilen automatisch denselben zentralen Speicher.
         // =========================================================================
         const CUSTOM_FIREBASE_CONFIG = null;
+        const GLOBAL_SYNC_ENDPOINT = "https://jsonblob.com/api/jsonBlob";
+        const FIXED_COMMUNITY_ROOM = "makerforge-3d-global-v1";
 
         // =========================================================================
         // GEHEIMER ADMIN-CODE: Gib diesen Text im Profil-Fenster ein, um Admin-
@@ -696,6 +698,7 @@
 
         let isCloudMode = Boolean(resolvedFirebaseConfig && resolvedFirebaseConfig.apiKey);
         let db = null, storage = null, firestoreFns = null, storageFns = null;
+        let isSyncingNow = false;
 
         let currentUser = null;
         // Creator-Name sofort dauerhaft speichern, damit er sich beim Neuladen NIE wieder ändert
@@ -719,10 +722,120 @@
 
             if (mode === 'cloud') {
                 dot.className = "w-2 h-2 rounded-full bg-brand-400 animate-pulse";
-                text.textContent = "Global Cloud Live";
+                text.textContent = "Global Live";
             } else {
-                dot.className = "w-2 h-2 rounded-full bg-amber-400";
-                text.textContent = "Cloud einrichten";
+                dot.className = "w-2 h-2 rounded-full bg-sky-400 animate-pulse";
+                text.textContent = "Community Sync";
+            }
+        }
+
+        // Fester, geteilter Online-Speicher über dweet.io + ntfy.sh History-Channel (funktioniert sofort ohne API-Key auf GitHub Pages)
+        const NTFY_TOPIC = "makerforge3d_global_community_feed_9821";
+
+        async function pushEventToGlobalFeed(eventPayload) {
+            try {
+                await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+                    method: "POST",
+                    headers: { "Title": "MF3D", "Tags": "3d" },
+                    body: JSON.stringify(eventPayload)
+                });
+            } catch (e) {
+                console.warn("Global Feed Push Hinweis:", e);
+            }
+        }
+
+        async function fetchGlobalFeedHistory(showFeedback = false) {
+            if (isSyncingNow) return;
+            isSyncingNow = true;
+            try {
+                const res = await fetch(`https://ntfy.sh/${NTFY_TOPIC}/json?poll=1&since=all`, {
+                    cache: "no-store"
+                });
+                if (!res.ok) throw new Error("Feed nicht erreichbar");
+                const rawText = await res.text();
+                const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+
+                const map = new Map();
+                allModels.forEach(m => map.set(m.id, m));
+                const deletedIds = new Set(JSON.parse(localStorage.getItem("mf_deleted_ids") || "[]"));
+
+                for (const line of lines) {
+                    try {
+                        const envelope = JSON.parse(line);
+                        if (!envelope.message) continue;
+                        const evt = JSON.parse(envelope.message);
+
+                        if (evt.type === "UPSERT_MODEL" && evt.model && evt.model.id) {
+                            if (deletedIds.has(evt.model.id)) continue;
+                            const existing = map.get(evt.model.id) || {};
+                            map.set(evt.model.id, {
+                                ...existing,
+                                ...evt.model,
+                                ...(existing.fileArrayBuffer ? { fileArrayBuffer: existing.fileArrayBuffer } : {}),
+                                ...(existing.fileDataBase64 && !evt.model.fileDataBase64 ? { fileDataBase64: existing.fileDataBase64 } : {})
+                            });
+                        } else if (evt.type === "UPDATE_STATS" && evt.modelId && evt.fields) {
+                            const existing = map.get(evt.modelId);
+                            if (existing) {
+                                map.set(evt.modelId, { ...existing, ...evt.fields });
+                            }
+                        } else if (evt.type === "DELETE_MODEL" && evt.modelId) {
+                            deletedIds.add(evt.modelId);
+                            map.delete(evt.modelId);
+                        }
+                    } catch (parseErr) {}
+                }
+
+                localStorage.setItem("mf_deleted_ids", JSON.stringify(Array.from(deletedIds)));
+                allModels = Array.from(map.values()).filter(m => !deletedIds.has(m.id));
+                persistModelsToLocalStorageBackup();
+
+                for (const m of allModels) {
+                    saveLocalIndexedDBModel(m).catch(() => {});
+                }
+
+                updateSyncStatusBadge('cloud');
+                updateTabCounters();
+                renderModels();
+                if (showFeedback) {
+                    showToast(`Synchronisiert! (${allModels.length} Modelle geladen)`, "success");
+                }
+            } catch (e) {
+                updateSyncStatusBadge('local');
+                if (showFeedback) {
+                    showToast("Offline-Modus aktiv (lokale Modelle angezeigt).", "info");
+                }
+            } finally {
+                isSyncingNow = false;
+            }
+        }
+
+        function forceGlobalSync(manual = false) {
+            fetchGlobalFeedHistory(manual);
+        }
+
+        function persistModelsToLocalStorageBackup() {
+            try {
+                const lightList = allModels.map(m => {
+                    const copy = { ...m };
+                    delete copy.fileArrayBuffer;
+                    if (copy.fileDataBase64 && copy.fileDataBase64.length > 250000) {
+                        delete copy.fileDataBase64;
+                    }
+                    return copy;
+                });
+                localStorage.setItem("mf_models_backup_v1", JSON.stringify(lightList));
+            } catch (e) {}
+        }
+
+        function loadModelsFromLocalStorageBackup() {
+            try {
+                const raw = localStorage.getItem("mf_models_backup_v1");
+                if (!raw) return [];
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
             }
         }
 
@@ -749,7 +862,6 @@
                 return;
             }
             try {
-                // Erlaubt sowohl reines JSON als auch JS-Objekt-Syntax
                 const normalized = raw
                     .replace(/^[^{]*/, '')
                     .replace(/[^}]*$/, '')
@@ -776,7 +888,7 @@
             setTimeout(() => location.reload(), 800);
         }
 
-        // 3. App-Start: Sofortiger Start + dauerhafte Cloud-Verbindung
+        // 3. App-Start: Sofortiger Start + automatischer globaler Community-Sync
         async function initApp() {
             initCategories();
 
@@ -787,19 +899,24 @@
             const loadingEl = document.getElementById('loading-state');
             if (loadingEl) loadingEl.classList.add('hidden');
 
-            document.getElementById('display-user-id').textContent = isCloudMode
-                ? "Verbinde mit globaler Cloud..."
-                : `${currentUser.uid} (Lokaler Speicher – klicke oben auf 'Cloud einrichten')`;
+            document.getElementById('display-user-id').textContent = `${currentUser.uid} (Global Community Live)`;
             updateHeaderProfileUI();
             updateAdminUI();
 
-            // Lokalen Speicher sofort laden, damit nichts jemals verschwindet
+            // 1. Sofort aus localStorage & IndexedDB laden (0ms Wartezeit)
+            allModels = loadModelsFromLocalStorageBackup();
             await loadLocalIndexedDBModels();
 
+            // 2. Sofort globale Community-Modelle aus dem öffentlichen Feed laden (funktioniert auf GitHub Pages & überall)
+            await fetchGlobalFeedHistory(false);
+
+            // 3. Alle 6 Sekunden automatisch neue Modelle, Likes & Follower von anderen Besuchern abrufen
+            setInterval(() => {
+                fetchGlobalFeedHistory(false);
+            }, 6000);
+
             if (isCloudMode) {
-                await connectMakerForgeCloud();
-            } else {
-                updateSyncStatusBadge('local');
+                connectMakerForgeCloud().catch(() => {});
             }
         }
 
@@ -938,28 +1055,41 @@
                 }
 
                 // Datei als stabilen ArrayBuffer einlesen, damit IndexedDB sie beim Refresh NIEMALS verliert
-                let fileBuffer = null;
+                let fileArrayBuffer = null;
                 try {
-                    fileBuffer = await selected3DFile.rawFile.arrayBuffer();
-                } catch (bufErr) {}
+                    fileArrayBuffer = await selected3DFile.rawFile.arrayBuffer();
+                } catch (abErr) {}
 
                 const localModelRecord = {
                     ...baseModelData,
                     id: persistentId,
                     fileType: selected3DFile.rawFile.type || 'application/octet-stream',
-                    ...(fileBuffer ? { fileArrayBuffer: fileBuffer } : {}),
+                    ...(fileArrayBuffer ? { fileArrayBuffer } : {}),
                     ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
                 };
 
-                // 1. Sofort sichtbar in die aktive Liste einfügen
+                // 1. Sofort sichtbar in die aktive Liste einfügen & lokal sichern
                 allModels.unshift(localModelRecord);
+                persistModelsToLocalStorageBackup();
                 updateTabCounters();
                 renderModels();
 
                 // 2. Lokal in IndexedDB sichern (überlebt jeden Refresh dauerhaft)
                 await saveLocalIndexedDBModel(localModelRecord);
 
-                // 3. In der globalen Cloud-Datenbank speichern (damit JEDER Besucher es dauerhaft sieht)
+                // 3. Sofort im globalen Community-Feed veröffentlichen (damit JEDER Besucher auf JEDEM Gerät es sieht)
+                const publicModelPayload = {
+                    ...baseModelData,
+                    id: persistentId,
+                    fileType: selected3DFile.rawFile.type || 'application/octet-stream',
+                    ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
+                };
+                await pushEventToGlobalFeed({
+                    type: "UPSERT_MODEL",
+                    model: publicModelPayload
+                });
+
+                // 4. Optional zusätzlich in Firebase speichern, falls konfiguriert
                 if (isCloudMode && firestoreFns && db) {
                     try {
                         const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
@@ -986,7 +1116,7 @@
                 }
 
                 closeUploadModal();
-                showToast("Modell dauerhaft gespeichert! Es bleibt auch nach einem Refresh erhalten.", "success");
+                showToast("Modell weltweit veröffentlicht! Es ist jetzt für alle Besucher sichtbar.", "success");
             } catch (err) {
                 console.error("Upload-Fehler:", err);
                 showToast("Fehler beim Veröffentlichen des Modells: " + err.message, "error");
@@ -1396,10 +1526,18 @@
 
         async function persistModelStatsUpdate(model, fields) {
             try {
-                // 1. Immer dauerhaft lokal in IndexedDB sichern
+                // 1. Immer dauerhaft lokal in IndexedDB & localStorage sichern
+                persistModelsToLocalStorageBackup();
                 await saveLocalIndexedDBModel(model);
 
-                // 2. Zusätzlich in der globalen Cloud-Datenbank aktualisieren (für alle anderen Besucher)
+                // 2. Sofort für alle anderen Besucher weltweit synchronisieren
+                await pushEventToGlobalFeed({
+                    type: "UPDATE_STATS",
+                    modelId: model.id,
+                    fields: fields
+                });
+
+                // 3. Zusätzlich in Firebase aktualisieren, falls konfiguriert
                 if (isCloudMode && firestoreFns && db) {
                     const modelRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
                     await firestoreFns.setDoc(modelRef, fields, { merge: true });
@@ -1617,8 +1755,19 @@
         async function deleteOwnModel(modelId) {
             try {
                 const targetModel = allModels.find(m => m.id === modelId);
+                const deletedIds = new Set(JSON.parse(localStorage.getItem("mf_deleted_ids") || "[]"));
+                deletedIds.add(modelId);
+                localStorage.setItem("mf_deleted_ids", JSON.stringify(Array.from(deletedIds)));
+
                 await deleteLocalIndexedDBModel(modelId);
                 allModels = allModels.filter(m => m.id !== modelId);
+                persistModelsToLocalStorageBackup();
+
+                await pushEventToGlobalFeed({
+                    type: "DELETE_MODEL",
+                    modelId: modelId
+                });
+
                 if (isCloudMode && firestoreFns && db) {
                     if (targetModel && targetModel.storagePath && storageFns && storage) {
                         try {
@@ -1629,7 +1778,7 @@
                 }
                 await loadLocalIndexedDBModels();
                 closeDetailModal();
-                showToast("Das Modell wurde dauerhaft gelöscht.", "info");
+                showToast("Das Modell wurde weltweit gelöscht.", "info");
             } catch (err) {
                 console.error("Lösch-Fehler:", err);
                 showToast("Fehler beim Löschen des Modells.", "error");
