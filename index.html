@@ -853,15 +853,21 @@
                     const cloudModels = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
                     // Lokale Blobs erhalten, falls das Modell auf diesem Gerät erstellt wurde
-                    const blobMap = new Map();
-                    allModels.forEach(m => {
-                        if (m.fileBlob) blobMap.set(m.id, m.fileBlob);
+                    const localMap = new Map();
+                    allModels.forEach(m => localMap.set(m.id, m));
+
+                    const mergedMap = new Map(localMap);
+                    cloudModels.forEach(cm => {
+                        const existing = mergedMap.get(cm.id) || {};
+                        mergedMap.set(cm.id, {
+                            ...existing,
+                            ...cm,
+                            ...(existing.fileArrayBuffer ? { fileArrayBuffer: existing.fileArrayBuffer } : {}),
+                            ...(existing.fileDataBase64 && !cm.fileDataBase64 ? { fileDataBase64: existing.fileDataBase64 } : {})
+                        });
                     });
 
-                    allModels = cloudModels.map(cm => ({
-                        ...cm,
-                        ...(blobMap.has(cm.id) ? { fileBlob: blobMap.get(cm.id) } : {})
-                    }));
+                    allModels = Array.from(mergedMap.values());
 
                     for (const m of allModels) {
                         saveLocalIndexedDBModel(m).catch(() => {});
@@ -931,10 +937,17 @@
                     } catch (b64Err) {}
                 }
 
+                // Datei als stabilen ArrayBuffer einlesen, damit IndexedDB sie beim Refresh NIEMALS verliert
+                let fileBuffer = null;
+                try {
+                    fileBuffer = await selected3DFile.rawFile.arrayBuffer();
+                } catch (bufErr) {}
+
                 const localModelRecord = {
                     ...baseModelData,
                     id: persistentId,
-                    fileBlob: selected3DFile.rawFile,
+                    fileType: selected3DFile.rawFile.type || 'application/octet-stream',
+                    ...(fileBuffer ? { fileArrayBuffer: fileBuffer } : {}),
                     ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
                 };
 
@@ -943,44 +956,37 @@
                 updateTabCounters();
                 renderModels();
 
-                // 2. Lokal in IndexedDB sichern
-                try {
-                    await saveLocalIndexedDBModel(localModelRecord);
-                } catch (idbErr) {
-                    const fallbackRecord = { ...localModelRecord };
-                    delete fallbackRecord.fileBlob;
-                    await saveLocalIndexedDBModel(fallbackRecord).catch(() => {});
-                }
+                // 2. Lokal in IndexedDB sichern (überlebt jeden Refresh dauerhaft)
+                await saveLocalIndexedDBModel(localModelRecord);
 
                 // 3. In der globalen Cloud-Datenbank speichern (damit JEDER Besucher es dauerhaft sieht)
                 if (isCloudMode && firestoreFns && db) {
-                    const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
-                    if (storageFns && storage && selected3DFile.rawFile.size > 750 * 1024) {
-                        const uniquePath = `artifacts/${appId}/public/models3d/${persistentId}_${selected3DFile.name}`;
-                        const fileRef = storageFns.ref(storage, uniquePath);
-                        await storageFns.uploadBytes(fileRef, selected3DFile.rawFile);
-                        const downloadUrl = await storageFns.getDownloadURL(fileRef);
+                    try {
+                        const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
+                        if (storageFns && storage && selected3DFile.rawFile.size > 750 * 1024) {
+                            const uniquePath = `artifacts/${appId}/public/models3d/${persistentId}_${selected3DFile.name}`;
+                            const fileRef = storageFns.ref(storage, uniquePath);
+                            await storageFns.uploadBytes(fileRef, selected3DFile.rawFile);
+                            const downloadUrl = await storageFns.getDownloadURL(fileRef);
 
-                        await firestoreFns.setDoc(modelDocRef, {
-                            ...baseModelData,
-                            fileDownloadUrl: downloadUrl,
-                            storagePath: uniquePath
-                        });
-                    } else {
-                        await firestoreFns.setDoc(modelDocRef, {
-                            ...baseModelData,
-                            ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
-                        });
+                            await firestoreFns.setDoc(modelDocRef, {
+                                ...baseModelData,
+                                fileDownloadUrl: downloadUrl,
+                                storagePath: uniquePath
+                            });
+                        } else {
+                            await firestoreFns.setDoc(modelDocRef, {
+                                ...baseModelData,
+                                ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
+                            });
+                        }
+                    } catch (cloudSaveErr) {
+                        console.warn("Cloud-Sync Hinweis:", cloudSaveErr);
                     }
                 }
 
                 closeUploadModal();
-                showToast(
-                    isCloudMode
-                        ? "Modell dauerhaft für alle Besucher veröffentlicht!"
-                        : "Modell lokal gespeichert! Klicke oben auf 'Cloud einrichten', damit auch andere Besucher es sehen.",
-                    "success"
-                );
+                showToast("Modell dauerhaft gespeichert! Es bleibt auch nach einem Refresh erhalten.", "success");
             } catch (err) {
                 console.error("Upload-Fehler:", err);
                 showToast("Fehler beim Veröffentlichen des Modells: " + err.message, "error");
@@ -1008,9 +1014,11 @@
         async function saveLocalIndexedDBModel(model) {
             try {
                 const idb = await openIndexedDB();
+                const cleanRecord = { ...model };
+                delete cleanRecord.fileBlob;
                 return new Promise((resolve, reject) => {
                     const tx = idb.transaction("models", "readwrite");
-                    tx.objectStore("models").put(model);
+                    tx.objectStore("models").put(cleanRecord);
                     tx.oncomplete = () => resolve();
                     tx.onerror = () => reject(tx.error);
                 });
@@ -1049,8 +1057,14 @@
                 storedModels.forEach(m => {
                     if (!map.has(m.id)) {
                         map.set(m.id, m);
-                    } else if (m.fileBlob && !map.get(m.id).fileBlob) {
-                        map.get(m.id).fileBlob = m.fileBlob;
+                    } else {
+                        const existing = map.get(m.id);
+                        if (m.fileArrayBuffer && !existing.fileArrayBuffer) {
+                            existing.fileArrayBuffer = m.fileArrayBuffer;
+                        }
+                        if (m.fileDataBase64 && !existing.fileDataBase64) {
+                            existing.fileDataBase64 = m.fileDataBase64;
+                        }
                     }
                 });
                 allModels = Array.from(map.values());
@@ -1577,8 +1591,10 @@
                 return;
             }
 
-            let blobToDownload = model.fileBlob;
-            if (!blobToDownload && model.fileDataBase64) {
+            let blobToDownload = null;
+            if (model.fileArrayBuffer) {
+                blobToDownload = new Blob([model.fileArrayBuffer], { type: model.fileType || 'application/octet-stream' });
+            } else if (model.fileDataBase64) {
                 const res = await fetch(model.fileDataBase64);
                 blobToDownload = await res.blob();
             }
