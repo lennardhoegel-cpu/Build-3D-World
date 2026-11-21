@@ -120,6 +120,12 @@
                         <span id="header-username" class="max-w-[110px] truncate text-gray-200 font-semibold">Maker</span>
                     </button>
 
+                    <!-- Cloud / Community Sync Status -->
+                    <span id="sync-status-badge" onclick="openProfileModal()" class="hidden md:flex cursor-pointer items-center gap-1.5 bg-darkbg-800 border border-gray-700 px-2.5 py-2 rounded-xl text-[11px] font-semibold text-gray-400 hover:text-white transition-all" title="Verbindungsstatus der Community-Datenbank">
+                        <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        <span id="sync-status-text">Verbinde...</span>
+                    </span>
+
                     <!-- Upload Button -->
                     <button onclick="openUploadModal()" class="flex items-center gap-2 bg-gradient-to-r from-brand-400 to-brand-500 hover:from-brand-300 hover:to-brand-400 text-darkbg-950 font-extrabold px-3.5 py-2 rounded-xl text-sm shadow-glow transition-all active:scale-95">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -636,11 +642,16 @@
             { id: "Cosplay", label: "Cosplay & Requisiten", icon: "fa-mask" }
         ];
 
-        let isCloudMode = Boolean(resolvedFirebaseConfig && resolvedFirebaseConfig.apiKey);
+        let isCloudMode = Boolean(CUSTOM_FIREBASE_CONFIG && CUSTOM_FIREBASE_CONFIG.apiKey);
         let db = null, storage = null, firestoreFns = null, storageFns = null;
 
         let currentUser = null;
-        let creatorName = localStorage.getItem('mf_creator_name') || ("Maker_" + Math.floor(1000 + Math.random() * 9000));
+        // Creator-Name sofort dauerhaft speichern, damit er sich beim Neuladen NIE wieder ändert
+        let creatorName = localStorage.getItem('mf_creator_name');
+        if (!creatorName) {
+            creatorName = "Maker_" + Math.floor(1000 + Math.random() * 9000);
+            localStorage.setItem('mf_creator_name', creatorName);
+        }
         let isAdmin = localStorage.getItem('mf_is_admin') === 'true';
         let allModels = [];
         let activeCategory = "Alle";
@@ -649,99 +660,27 @@
         let selected3DFile = null;
         let selectedImageBase64 = "";
 
-        // Persönliche Interaktionen (Likes, Gespeichert, Gefolgte Creator) dauerhaft merken
-        let userLikedIds = JSON.parse(localStorage.getItem('mf_liked_models') || '[]');
-        let userSavedIds = JSON.parse(localStorage.getItem('mf_saved_models') || '[]');
-        let userFollowedCreators = JSON.parse(localStorage.getItem('mf_followed_creators') || '[]');
-        let creatorFollowerMap = JSON.parse(localStorage.getItem('mf_creator_followers') || '{}');
+        // Öffentlicher Community-Sync für GitHub Pages (wenn kein eigenes Firebase eingetragen ist)
+        const PUBLIC_RELAY_BUCKET = "https://kvdb.io/A5x9MakerForge3DGlobal";
 
-        function persistUserInteractions() {
-            localStorage.setItem('mf_liked_models', JSON.stringify(userLikedIds));
-            localStorage.setItem('mf_saved_models', JSON.stringify(userSavedIds));
-            localStorage.setItem('mf_followed_creators', JSON.stringify(userFollowedCreators));
-            localStorage.setItem('mf_creator_followers', JSON.stringify(creatorFollowerMap));
-            updateTabCounters();
-        }
+        function updateSyncStatusBadge(mode) {
+            const dot = document.getElementById('sync-status-dot');
+            const text = document.getElementById('sync-status-text');
+            if (!dot || !text) return;
 
-        function updateTabCounters() {
-            const likedCountEl = document.getElementById('liked-tab-count');
-            const savedCountEl = document.getElementById('saved-tab-count');
-            const followingCountEl = document.getElementById('following-tab-count');
-            if (likedCountEl) likedCountEl.textContent = allModels.filter(m => userLikedIds.includes(m.id)).length;
-            if (savedCountEl) savedCountEl.textContent = allModels.filter(m => userSavedIds.includes(m.id)).length;
-            if (followingCountEl) followingCountEl.textContent = userFollowedCreators.length;
-        }
-
-        window.setViewTab = function(tab) {
-            activeViewTab = tab;
-            document.querySelectorAll('.view-tab-btn').forEach(btn => {
-                btn.className = "view-tab-btn flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all text-gray-400 hover:text-white hover:bg-darkbg-800";
-            });
-            const activeBtn = document.getElementById(`tab-${tab}`);
-            if (activeBtn) {
-                activeBtn.className = "view-tab-btn flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all bg-white/10 text-white border border-white/15";
+            if (mode === 'cloud') {
+                dot.className = "w-2 h-2 rounded-full bg-brand-400 animate-pulse";
+                text.textContent = "Global Cloud Live";
+            } else if (mode === 'relay') {
+                dot.className = "w-2 h-2 rounded-full bg-sky-400 animate-pulse";
+                text.textContent = "Community Sync";
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-amber-400";
+                text.textContent = "Lokaler Speicher";
             }
-
-            const titleSpan = document.getElementById('current-view-title').firstElementChild;
-            if (tab === 'liked') titleSpan.textContent = "Deine gelikten 3D-Modelle";
-            else if (tab === 'saved') titleSpan.textContent = "Deine gespeicherten 3D-Modelle";
-            else if (tab === 'following') titleSpan.textContent = "Modelle deiner gefolgten Creator";
-            else titleSpan.textContent = activeCategory === "Alle" ? "Alle 3D-Druck-Modelle" : `Kategorie: ${activeCategory}`;
-
-            renderModels();
-        };
-
-        // 2. Kategorien & Profil-Speicherung initialisieren
-        function initCategories() {
-            const catBar = document.getElementById('category-bar');
-            const catSelect = document.getElementById('model-category');
-            if (!catBar || !catSelect) return;
-
-            catBar.innerHTML = '';
-            catSelect.innerHTML = '';
-
-            CATEGORIES.forEach(cat => {
-                const isActive = activeCategory === cat.id;
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = `flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                    isActive
-                        ? 'bg-brand-500 text-darkbg-950 font-bold shadow-md shadow-brand-500/20'
-                        : 'bg-darkbg-800/80 text-gray-300 hover:bg-darkbg-700 hover:text-white border border-gray-800'
-                }`;
-                btn.innerHTML = `<i class="fa-solid ${cat.icon}"></i><span>${cat.label}</span>`;
-                btn.onclick = () => {
-                    activeCategory = cat.id;
-                    if (activeViewTab === 'all') {
-                        document.getElementById('current-view-title').firstElementChild.textContent =
-                            cat.id === "Alle" ? "Alle 3D-Druck-Modelle" : `Kategorie: ${cat.label}`;
-                    }
-                    initCategories();
-                    renderModels();
-                };
-                catBar.appendChild(btn);
-
-                if (cat.id !== "Alle") {
-                    const opt = document.createElement('option');
-                    opt.value = cat.id;
-                    opt.textContent = cat.label;
-                    catSelect.appendChild(opt);
-                }
-            });
         }
 
-        window.saveCreatorProfile = function(e) {
-            e.preventDefault();
-            const newName = document.getElementById('creator-name-input').value.trim();
-            if (!newName) return;
-            creatorName = newName;
-            localStorage.setItem('mf_creator_name', creatorName);
-            updateHeaderProfileUI();
-            closeProfileModal();
-            showToast(`Creator-Name gespeichert: ${creatorName}`, "success");
-        };
-
-        // 3. App-Start & Reparatur der MakerForge Cloud-Datenbank-Verbindung
+        // 3. App-Start: Sofortiger Start ohne Lade-Hänger
         async function initApp() {
             initCategories();
 
@@ -749,16 +688,91 @@
             localStorage.setItem('mf_local_uid', savedLocalId);
             currentUser = { uid: savedLocalId };
 
+            // Ladebildschirm sofort ausblenden, damit die Seite niemals hängen bleibt
+            const loadingEl = document.getElementById('loading-state');
+            if (loadingEl) loadingEl.classList.add('hidden');
+
             document.getElementById('display-user-id').textContent = isCloudMode
-                ? "Verbinde mit MakerForge Cloud-Datenbank..."
-                : `${currentUser.uid} (GitHub Pages / Lokaler 100GB-Speicher)`;
+                ? "Verbinde mit eigener Firebase Cloud..."
+                : `${currentUser.uid} (Sofort-Modus aktiv)`;
             updateHeaderProfileUI();
             updateAdminUI();
+
+            // Zuerst sofort lokale Modelle laden & anzeigen
+            await loadLocalIndexedDBModels();
 
             if (isCloudMode) {
                 await connectMakerForgeCloud();
             } else {
-                await loadLocalIndexedDBModels();
+                updateSyncStatusBadge('relay');
+                syncPublicCommunityFeed();
+                setInterval(syncPublicCommunityFeed, 8000);
+            }
+        }
+
+        // Öffentlicher Community-Feed für GitHub Pages (damit alle Besucher Modelle voneinander sehen)
+        async function syncPublicCommunityFeed() {
+            try {
+                const res = await fetch(`${PUBLIC_RELAY_BUCKET}/models_index`, { cache: 'no-store' });
+                if (!res.ok) {
+                    updateSyncStatusBadge('local');
+                    return;
+                }
+                const remoteList = await res.json();
+                if (Array.isArray(remoteList)) {
+                    updateSyncStatusBadge('relay');
+                    let changed = false;
+                    for (const remoteModel of remoteList) {
+                        const existingIdx = allModels.findIndex(m => m.id === remoteModel.id);
+                        if (existingIdx === -1) {
+                            allModels.push(remoteModel);
+                            await saveLocalIndexedDBModel(remoteModel);
+                            changed = true;
+                        } else {
+                            // Kennzahlen (Likes, Saves, Downloads, Follower) vom Server übernehmen
+                            const localM = allModels[existingIdx];
+                            if ((remoteModel.likes || 0) !== (localM.likes || 0) ||
+                                (remoteModel.saves || 0) !== (localM.saves || 0) ||
+                                (remoteModel.downloads || 0) !== (localM.downloads || 0) ||
+                                (remoteModel.creatorFollowers || 0) !== (localM.creatorFollowers || 0)) {
+                                allModels[existingIdx] = { ...localM, ...remoteModel, fileBlob: localM.fileBlob };
+                                await saveLocalIndexedDBModel(allModels[existingIdx]);
+                                changed = true;
+                            }
+                        }
+                    }
+                    // Gelöschte Modelle entfernen
+                    const remoteIds = new Set(remoteList.map(r => r.id));
+                    const beforeLen = allModels.length;
+                    allModels = allModels.filter(m => remoteIds.has(m.id) || m.isLocalOnly);
+                    if (allModels.length !== beforeLen) changed = true;
+
+                    if (changed) {
+                        updateTabCounters();
+                        renderModels();
+                    }
+                }
+            } catch (e) {
+                updateSyncStatusBadge('local');
+            }
+        }
+
+        async function pushPublicCommunityFeed() {
+            try {
+                // Für den schnellen Community-Sync speichern wir Metadaten + kompakte STL/3MF-Dateien (bis 2 MB) direkt mit
+                const shareableList = allModels.map(m => {
+                    const copy = { ...m };
+                    delete copy.fileBlob;
+                    return copy;
+                });
+                await fetch(`${PUBLIC_RELAY_BUCKET}/models_index`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(shareableList)
+                });
+                updateSyncStatusBadge('relay');
+            } catch (e) {
+                console.warn("Community-Relay nicht erreichbar:", e);
             }
         }
 
@@ -769,10 +783,11 @@
             // Sicherheits-Timeout (4 Sekunden), falls Cloud-Dienst blockiert ist (z.B. GitHub Pages ohne Regeln)
             const fallbackTimer = setTimeout(async () => {
                 if (!cloudResolved) {
-                    console.warn("Cloud-Zeitüberschreitung – wechsle auf lokalen High-Capacity Speicher.");
+                    console.warn("Cloud-Zeitüberschreitung – wechsle auf Community-Sync Speicher.");
                     isCloudMode = false;
-                    document.getElementById('display-user-id').textContent = `${currentUser.uid} (Lokaler Fallback)`;
+                    document.getElementById('display-user-id').textContent = `${currentUser.uid} (Community-Sync)`;
                     await loadLocalIndexedDBModels();
+                    await syncPublicCommunityFeed();
                 }
             }, 4000);
 
@@ -809,12 +824,14 @@
 
                 currentUser = user;
                 document.getElementById('display-user-id').textContent = `${user.uid} (MakerForge Cloud aktiv)`;
+                updateSyncStatusBadge('cloud');
 
                 const modelsCol = fsMod.collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
                 fsMod.onSnapshot(modelsCol, async (snapshot) => {
                     cloudResolved = true;
                     clearTimeout(fallbackTimer);
                     if (loadingEl) loadingEl.classList.add('hidden');
+                    updateSyncStatusBadge('cloud');
 
                     allModels = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
                     // Synchronisiere auch den lokalen Backup-Speicher, damit Modelle nie verloren gehen
@@ -829,434 +846,74 @@
                     clearTimeout(fallbackTimer);
                     isCloudMode = false;
                     await loadLocalIndexedDBModels();
+                    await syncPublicCommunityFeed();
                 });
             } catch (err) {
                 console.error("Cloud-Verbindungsfehler:", err);
                 cloudResolved = true;
                 clearTimeout(fallbackTimer);
                 isCloudMode = false;
-                document.getElementById('display-user-id').textContent = `${currentUser.uid} (Lokaler Speicher)`;
+                document.getElementById('display-user-id').textContent = `${currentUser.uid} (Community-Sync)`;
                 await loadLocalIndexedDBModels();
+                await syncPublicCommunityFeed();
             }
         }
 
-        async function startBackgroundCloudSync() {
-            try {
-                const [{ initializeApp }, authMod, fsMod, stMod] = await Promise.all([
-                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
-                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
-                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"),
-                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js")
-                ]);
-
-                const app = initializeApp(CUSTOM_FIREBASE_CONFIG);
-                const auth = authMod.getAuth(app);
-                db = fsMod.getFirestore(app);
-                storage = stMod.getStorage(app);
-                firestoreFns = fsMod;
-                storageFns = stMod;
-
-                await authMod.signInAnonymously(auth);
-                authMod.onAuthStateChanged(auth, (user) => {
-                    if (!user) return;
-                    currentUser = user;
-                    document.getElementById('display-user-id').textContent = user.uid;
-
-                    const modelsCol = fsMod.collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
-                    fsMod.onSnapshot(modelsCol, (snapshot) => {
-                        allModels = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                        renderModels();
-                    }, (err) => {
-                        console.warn("Cloud-Sync Fehler, bleibe im lokalen Modus:", err);
-                        isCloudMode = false;
-                    });
-                });
-            } catch (err) {
-                console.warn("Cloud-Module konnten nicht geladen werden, nutze lokalen Speicher:", err);
-                isCloudMode = false;
-            }
-        }
-
-        // 4. IndexedDB Helfer für dauerhafte Speicherung auf GitHub Pages (bis 100 GB)
-        function openLocalDB() {
-            return new Promise((resolve, reject) => {
-                const req = indexedDB.open('MakerForge3D_Storage', 1);
-                req.onupgradeneeded = (e) => {
-                    const idb = e.target.result;
-                    if (!idb.objectStoreNames.contains('models3d')) {
-                        idb.createObjectStore('models3d', { keyPath: 'id' });
-                    }
-                };
-                req.onsuccess = () => resolve(req.result);
-                req.onerror = () => reject(req.error);
-            });
-        }
-
-        async function loadLocalIndexedDBModels() {
-            const loadingEl = document.getElementById('loading-state');
-            try {
-                const idb = await openLocalDB();
-                const tx = idb.transaction('models3d', 'readonly');
-                const store = tx.objectStore('models3d');
-                const req = store.getAll();
-                req.onsuccess = async () => {
-                    if (loadingEl) loadingEl.classList.add('hidden');
-                    allModels = req.result || [];
-                    updateTabCounters();
-                    renderModels();
-                };
-                req.onerror = () => {
-                    if (loadingEl) loadingEl.classList.add('hidden');
-                    renderModels();
-                };
-            } catch (err) {
-                console.error("IndexedDB Fehler:", err);
-                if (loadingEl) loadingEl.classList.add('hidden');
-                renderModels();
-            }
-        }
-
-        async function saveLocalIndexedDBModel(modelObj) {
-            const idb = await openLocalDB();
-            return new Promise((resolve, reject) => {
-                const tx = idb.transaction('models3d', 'readwrite');
-                tx.objectStore('models3d').put(modelObj);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error);
-            });
-        }
-
-        async function deleteLocalIndexedDBModel(id) {
-            const idb = await openLocalDB();
-            return new Promise((resolve, reject) => {
-                const tx = idb.transaction('models3d', 'readwrite');
-                tx.objectStore('models3d').delete(id);
-                tx.oncomplete = () => resolve();
-                tx.onerror = () => reject(tx.error);
-            });
-        }
-
-        function updateHeaderProfileUI() {
-            document.getElementById('header-username').textContent = creatorName;
-            document.getElementById('creator-name-input').value = creatorName;
-            document.getElementById('header-avatar').textContent = creatorName.substring(0, 2).toUpperCase();
-        }
-
-        function updateAdminUI() {
-            const badge = document.getElementById('admin-header-badge');
-            const statusText = document.getElementById('admin-status-text');
-            const activateBtn = document.getElementById('admin-activate-btn');
-            const codeInput = document.getElementById('admin-code-input');
-
-            if (isAdmin) {
-                badge.classList.remove('hidden');
-                badge.classList.add('flex');
-                statusText.innerHTML = `<span class="text-amber-400 font-semibold"><i class="fa-solid fa-check-circle mr-1"></i>Admin-Modus aktiv:</span> Du kannst jetzt jedes Modell auf der Seite löschen.`;
-                activateBtn.textContent = "Deaktivieren";
-                codeInput.value = ADMIN_SECRET_CODE;
-            } else {
-                badge.classList.add('hidden');
-                badge.classList.remove('flex');
-                statusText.textContent = "Mit Admin-Rechten kannst du beliebige Dateien anderer Creator moderieren und löschen.";
-                activateBtn.textContent = "Aktivieren";
-            }
-        }
-
-        window.toggleAdminMode = function() {
-            const codeInput = document.getElementById('admin-code-input').value.trim();
-            if (isAdmin) {
-                isAdmin = false;
-                localStorage.setItem('mf_is_admin', 'false');
-                document.getElementById('admin-code-input').value = '';
-                updateAdminUI();
-                renderModels();
-                showToast("Admin-Modus deaktiviert.", "info");
-                return;
-            }
-
-            if (codeInput === ADMIN_SECRET_CODE) {
-                isAdmin = true;
-                localStorage.setItem('mf_is_admin', 'true');
-                updateAdminUI();
-                renderModels();
-                showToast("Admin-Rechte erfolgreich freigeschaltet!", "success");
-            } else {
-                showToast("Falscher Admin-Code!", "error");
-            }
-        };
-
-        // Hilfsfunktion: Follower-Anzahl eines Creators ermitteln
-        function getCreatorFollowersCount(model) {
-            const key = model.creatorId || model.creatorName || 'unknown';
-            if (typeof creatorFollowerMap[key] === 'number') {
-                return creatorFollowerMap[key];
-            }
-            return model.creatorFollowers || 0;
-        }
-
-        // 6. Modelle filtern, sortieren & rendern (ohne voreingestellte Demo-Modelle)
-        window.renderModels = function() {
-            const grid = document.getElementById('models-grid');
-            const emptyState = document.getElementById('empty-state');
-            const countBadge = document.getElementById('models-count-badge');
-            const searchTerm = document.getElementById('search-input').value.trim().toLowerCase();
-            const sortBy = document.getElementById('sort-select').value;
-
-            document.getElementById('clear-search-btn').classList.toggle('hidden', searchTerm.length === 0);
-            updateTabCounters();
-
-            let filtered = allModels.filter(m => {
-                const matchesCat = activeCategory === "Alle" || m.category === activeCategory;
-                const creatorKey = m.creatorId || m.creatorName;
-                const matchesTab =
-                    activeViewTab === 'all' ||
-                    (activeViewTab === 'liked' && userLikedIds.includes(m.id)) ||
-                    (activeViewTab === 'saved' && userSavedIds.includes(m.id)) ||
-                    (activeViewTab === 'following' && userFollowedCreators.includes(creatorKey));
-
-                const matchesSearch = !searchTerm ||
-                    (m.title && m.title.toLowerCase().includes(searchTerm)) ||
-                    (m.creatorName && m.creatorName.toLowerCase().includes(searchTerm)) ||
-                    (m.tutorial && m.tutorial.toLowerCase().includes(searchTerm)) ||
-                    (m.category && m.category.toLowerCase().includes(searchTerm));
-                return matchesCat && matchesTab && matchesSearch;
-            });
-
-            filtered.sort((a, b) => {
-                if (sortBy === 'downloads') return (b.downloads || 0) - (a.downloads || 0);
-                if (sortBy === 'likes') return (b.likes || 0) - (a.likes || 0);
-                return (b.createdAt || 0) - (a.createdAt || 0);
-            });
-
-            countBadge.textContent = filtered.length;
-            grid.innerHTML = '';
-
-            if (filtered.length === 0) {
-                emptyState.classList.remove('hidden');
-                emptyState.classList.add('flex');
-                return;
-            }
-
-            emptyState.classList.add('hidden');
-            emptyState.classList.remove('flex');
-
-            filtered.forEach(model => {
-                const fallbackImg = `https://placehold.co/600x400/1e222b/10b981?text=${encodeURIComponent(model.fileExt || '3D')}+Modell`;
-                const imgSrc = model.imageUrl || fallbackImg;
-                const isLiked = userLikedIds.includes(model.id);
-                const isSaved = userSavedIds.includes(model.id);
-                const creatorKey = model.creatorId || model.creatorName;
-                const isFollowing = userFollowedCreators.includes(creatorKey);
-                const followersCount = getCreatorFollowersCount(model);
-
-                const card = document.createElement('div');
-                card.className = "group bg-darkbg-800/90 border border-gray-800/90 hover:border-brand-500/60 rounded-2xl overflow-hidden shadow-card hover:shadow-glow transition-all duration-300 flex flex-col cursor-pointer";
-                card.onclick = () => openDetailModal(model);
-
-                card.innerHTML = `
-                    <div class="relative aspect-[16/10] bg-darkbg-900 overflow-hidden">
-                        <img src="${imgSrc}" alt="${escapeHtml(model.title)}" onerror="this.src='${fallbackImg}'"
-                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                        <div class="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
-                            <span class="bg-black/75 backdrop-blur-md text-gray-100 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-white/10">
-                                ${escapeHtml(model.category || 'Allgemein')}
-                            </span>
-                            <div class="flex items-center gap-1.5">
-                                <button type="button" onclick="event.stopPropagation(); toggleLikeModel('${model.id}')" title="Liken"
-                                        class="w-7 h-7 rounded-lg bg-black/75 backdrop-blur-md border border-white/10 flex items-center justify-center text-xs hover:scale-110 transition-transform ${isLiked ? 'text-rose-500' : 'text-gray-300 hover:text-rose-400'}">
-                                    <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
-                                </button>
-                                <button type="button" onclick="event.stopPropagation(); toggleSaveModel('${model.id}')" title="Speichern"
-                                        class="w-7 h-7 rounded-lg bg-black/75 backdrop-blur-md border border-white/10 flex items-center justify-center text-xs hover:scale-110 transition-transform ${isSaved ? 'text-amber-400' : 'text-gray-300 hover:text-amber-300'}">
-                                    <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-bookmark"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <span class="absolute bottom-3 right-3 bg-brand-500 text-darkbg-950 font-mono text-[11px] font-extrabold px-2 py-0.5 rounded-md shadow">
-                            .${escapeHtml(model.fileExt || 'STL')}
-                        </span>
-                    </div>
-                    <div class="p-4 flex-1 flex flex-col justify-between">
-                        <div>
-                            <h3 class="font-bold text-white text-base line-clamp-1 group-hover:text-brand-400 transition-colors">
-                                ${escapeHtml(model.title)}
-                            </h3>
-                            <p class="text-xs text-gray-400 line-clamp-2 mt-1.5 leading-relaxed">
-                                ${escapeHtml(model.tutorial || 'Keine Anleitung vorhanden.')}
-                            </p>
-                        </div>
-
-                        <!-- Creator Zeile mit Folgen-Button -->
-                        <div class="flex items-center justify-between gap-2 pt-3 mt-3.5 border-t border-gray-800/80">
-                            <div class="flex items-center gap-2 min-w-0">
-                                <div class="w-6 h-6 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-darkbg-950 flex items-center justify-center text-[10px] font-extrabold shrink-0">
-                                    ${escapeHtml((model.creatorName || 'M').substring(0, 1).toUpperCase())}
-                                </div>
-                                <div class="min-w-0">
-                                    <p class="truncate text-xs font-bold text-gray-200">${escapeHtml(model.creatorName || 'Unbekannt')}</p>
-                                    <p class="text-[10px] text-sky-400">${followersCount} Follower</p>
-                                </div>
-                            </div>
-                            <button type="button" onclick="event.stopPropagation(); toggleFollowCreator('${escapeHtml(creatorKey)}', '${escapeHtml(model.creatorName || 'Creator')}')"
-                                    class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
-                                        isFollowing
-                                            ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
-                                            : 'bg-darkbg-700 hover:bg-sky-500/20 text-gray-300 hover:text-sky-300 border border-gray-700'
-                                    }">
-                                ${isFollowing ? '<i class="fa-solid fa-check mr-1"></i>Gefolgt' : '+ Folgen'}
-                            </button>
-                        </div>
-
-                        <!-- Alle 4 Kennzahlen unten auf der Karte -->
-                        <div class="grid grid-cols-4 gap-1 pt-2.5 mt-2.5 border-t border-gray-800/60 text-[11px] text-gray-400 text-center">
-                            <span title="Likes" class="flex items-center justify-center gap-1 ${isLiked ? 'text-rose-400 font-bold' : ''}">
-                                <i class="fa-solid fa-heart text-rose-500"></i> ${model.likes || 0}
-                            </span>
-                            <span title="Gespeichert" class="flex items-center justify-center gap-1 ${isSaved ? 'text-amber-400 font-bold' : ''}">
-                                <i class="fa-solid fa-bookmark text-amber-400"></i> ${model.saves || 0}
-                            </span>
-                            <span title="Downloads" class="flex items-center justify-center gap-1">
-                                <i class="fa-solid fa-download text-brand-400"></i> ${model.downloads || 0}
-                            </span>
-                            <span title="Creator-Follower" class="flex items-center justify-center gap-1">
-                                <i class="fa-solid fa-users text-sky-400"></i> ${followersCount}
-                            </span>
-                        </div>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
-        };
-
-        // 7. Strikte Validierung für 3D-Druck-Dateien (bis 100 GB)
-        window.validate3DFile = function(input) {
-            const file = input.files[0];
-            const nameLabel = document.getElementById('file-selected-name');
-            const metaLabel = document.getElementById('file-selected-meta');
-            const dropZone = document.getElementById('file-drop-zone');
-
-            if (!file) {
-                selected3DFile = null;
-                return;
-            }
-
-            const parts = file.name.split('.');
-            const ext = parts.length > 1 ? parts.pop().toLowerCase() : '';
-
-            if (!ALLOWED_3D_EXTENSIONS.includes(ext)) {
-                input.value = '';
-                selected3DFile = null;
-                dropZone.classList.remove('border-brand-500');
-                dropZone.classList.add('border-rose-500');
-                nameLabel.innerHTML = `<span class="text-rose-400 font-bold">Ungültiges Dateiformat (.${escapeHtml(ext)})!</span>`;
-                metaLabel.textContent = "Es sind ausschließlich 3D-Druck-Dateien (.stl, .3mf, .obj, .step, .stp, .amf, .gcode) erlaubt.";
-                showToast(`Abgelehnt: .${ext} ist keine 3D-Druck-Datei!`, "error");
-                return;
-            }
-
-            if (file.size > MAX_FILE_SIZE_BYTES) {
-                input.value = '';
-                selected3DFile = null;
-                dropZone.classList.add('border-rose-500');
-                nameLabel.innerHTML = `<span class="text-rose-400 font-bold">Datei zu groß (${formatBytes(file.size)})!</span>`;
-                metaLabel.textContent = "Das maximale Limit liegt bei 100 GB pro 3D-Datei.";
-                showToast("Datei überschreitet das 100-GB-Limit.", "error");
-                return;
-            }
-
-            selected3DFile = {
-                name: file.name,
-                ext: ext.toUpperCase(),
-                size: formatBytes(file.size),
-                rawFile: file
-            };
-
-            dropZone.classList.remove('border-rose-500', 'border-gray-600');
-            dropZone.classList.add('border-brand-500', 'bg-brand-500/5');
-            nameLabel.innerHTML = `<i class="fa-solid fa-check-circle text-brand-400 mr-1"></i> <span class="text-white font-bold">${escapeHtml(file.name)}</span>`;
-            metaLabel.textContent = `Format: .${ext.toUpperCase()} • Größe: ${formatBytes(file.size)} • Bereit zum Upload (Max. 100 GB)`;
-        };
-
-        // Bildauswahl & Vorschau
-        window.handleImageSelection = function(input) {
-            const file = input.files[0];
-            if (!file) return;
-            document.getElementById('image-file-label').textContent = file.name;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                selectedImageBase64 = ev.target.result;
-                document.getElementById('image-preview-img').src = selectedImageBase64;
-                document.getElementById('image-preview-container').classList.remove('hidden');
-            };
-            reader.readAsDataURL(file);
-        };
-
-        window.previewImageUrl = function(url) {
-            if (!url.trim()) {
-                if (!selectedImageBase64) document.getElementById('image-preview-container').classList.add('hidden');
-                return;
-            }
-            selectedImageBase64 = "";
-            document.getElementById('image-preview-img').src = url.trim();
-            document.getElementById('image-preview-container').classList.remove('hidden');
-        };
-
-        window.clearSelectedImage = function() {
-            selectedImageBase64 = "";
-            document.getElementById('model-image-input').value = '';
-            document.getElementById('model-image-url').value = '';
-            document.getElementById('image-file-label').textContent = "Bild vom Gerät wählen";
-            document.getElementById('image-preview-container').classList.add('hidden');
-        };
-
-        // 8. Neues 3D-Modell speichern
-        window.handleModelUpload = async function(e) {
+        // 4. Formular-Upload verarbeiten (3D-Modell + Tutorial speichern)
+        async function handleModelUpload(e) {
             e.preventDefault();
-            if (!selected3DFile || !selected3DFile.rawFile) {
+
+            if (!selected3DFile) {
                 showToast("Bitte wähle zuerst eine gültige 3D-Druck-Datei (.stl, .3mf, .obj, .step) aus!", "error");
                 return;
             }
 
-            const btn = document.getElementById('submit-upload-btn');
-            const originalHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Speichere 3D-Datei (${selected3DFile.size})...</span>`;
+            const title = document.getElementById('model-title').value.trim();
+            const category = document.getElementById('model-category').value;
+            const tutorial = document.getElementById('model-tutorial').value.trim();
+            const material = document.getElementById('print-material').value;
+            const layerHeight = document.getElementById('print-layer').value;
+            const infill = document.getElementById('print-infill').value.trim() || "15%";
+            const supports = document.getElementById('print-supports').value;
+
+            const submitBtn = document.getElementById('submit-upload-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Wird veröffentlicht...</span>';
 
             try {
-                const title = document.getElementById('model-title').value.trim();
-                const category = document.getElementById('model-category').value;
-                const tutorial = document.getElementById('model-tutorial').value.trim();
-                const urlInput = document.getElementById('model-image-url').value.trim();
-                const finalImage = selectedImageBase64 || urlInput || "";
-                const persistentId = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+                const persistentId = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
 
                 const baseModelData = {
-                    title: title,
-                    category: category,
+                    title,
+                    category,
+                    tutorial,
                     creatorName: creatorName,
-                    creatorId: currentUser.uid,
-                    creatorFollowers: creatorFollowerMap[currentUser.uid] || 0,
+                    creatorId: currentUser ? currentUser.uid : 'anonymous',
                     fileName: selected3DFile.name,
                     fileExt: selected3DFile.ext,
-                    fileSize: selected3DFile.size,
-                    imageUrl: finalImage,
-                    material: document.getElementById('print-material').value,
-                    layerHeight: document.getElementById('print-layer').value,
-                    infill: document.getElementById('print-infill').value.trim() || "15%",
-                    supports: document.getElementById('print-supports').value,
-                    tutorial: tutorial,
+                    fileSizeFormatted: formatBytes(selected3DFile.size),
+                    imageUrl: selectedImageBase64 || "",
+                    printSettings: { material, layerHeight, infill, supports },
                     likes: 0,
                     saves: 0,
                     downloads: 0,
+                    creatorFollowers: 0,
                     createdAt: Date.now()
                 };
 
                 // Immer lokal in IndexedDB speichern, damit das Modell auf jeden Fall dauerhaft bleibt
-                await saveLocalIndexedDBModel({
+                let inlineBase64 = null;
+                if (selected3DFile.rawFile.size <= 2.5 * 1024 * 1024) {
+                    inlineBase64 = await fileToBase64(selected3DFile.rawFile);
+                }
+
+                const localModelRecord = {
                     ...baseModelData,
                     id: persistentId,
-                    fileBlob: selected3DFile.rawFile
-                });
+                    fileBlob: selected3DFile.rawFile,
+                    ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
+                };
+                await saveLocalIndexedDBModel(localModelRecord);
 
                 if (isCloudMode && firestoreFns && db) {
                     const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
@@ -1273,313 +930,427 @@
                                 storagePath: uniquePath
                             });
                         } catch (stUploadErr) {
-                            const b64 = await fileToBase64(selected3DFile.rawFile);
+                            const b64 = inlineBase64 || await fileToBase64(selected3DFile.rawFile);
                             await firestoreFns.setDoc(modelDocRef, {
                                 ...baseModelData,
                                 fileDataBase64: b64
                             });
                         }
                     } else {
-                        const b64 = await fileToBase64(selected3DFile.rawFile);
+                        const b64 = inlineBase64 || await fileToBase64(selected3DFile.rawFile);
                         await firestoreFns.setDoc(modelDocRef, {
                             ...baseModelData,
                             fileDataBase64: b64
                         });
                     }
+                } else {
+                    allModels.unshift(localModelRecord);
+                    await pushPublicCommunityFeed();
                 }
 
                 await loadLocalIndexedDBModels();
-
-                // Formular zurücksetzen & schließen
-                document.getElementById('upload-form').reset();
-                selected3DFile = null;
-                clearSelectedImage();
-                document.getElementById('file-selected-name').textContent = "Klicke hier, um deine 3D-Druck-Datei auszuwählen";
-                document.getElementById('file-selected-meta').textContent = "Maximalgröße: 100 GB • Nur 3D-Druck-Dateien erlaubt.";
-                const dropZone = document.getElementById('file-drop-zone');
-                dropZone.classList.remove('border-brand-500', 'bg-brand-500/5', 'border-rose-500');
-                dropZone.classList.add('border-gray-600');
-
+                updateTabCounters();
+                renderModels();
                 closeUploadModal();
                 showToast("Dein 3D-Modell wurde erfolgreich veröffentlicht!", "success");
             } catch (err) {
                 console.error("Upload-Fehler:", err);
-                showToast("Fehler beim Veröffentlichen des Modells.", "error");
+                showToast("Fehler beim Veröffentlichen des Modells: " + err.message, "error");
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>Für Community veröffentlichen</span>';
             }
-        };
+        }
 
-        function fileToBase64(file) {
+        // 5. Lokaler High-Capacity-Speicher (IndexedDB)
+        function openIndexedDB() {
             return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = (err) => reject(err);
-                reader.readAsDataURL(file);
+                const request = indexedDB.open("MakerForge3D_Storage", 1);
+                request.onupgradeneeded = (event) => {
+                    const idb = event.target.result;
+                    if (!idb.objectStoreNames.contains("models")) {
+                        idb.createObjectStore("models", { keyPath: "id" });
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
             });
         }
 
-        async function download3DModel(model) {
+        async function saveLocalIndexedDBModel(model) {
             try {
-                let downloadHref = model.fileDownloadUrl || model.fileDataBase64 || null;
-                let revokeNeeded = false;
-
-                if (!downloadHref && model.fileBlob) {
-                    downloadHref = URL.createObjectURL(model.fileBlob);
-                    revokeNeeded = true;
-                }
-
-                if (!downloadHref) {
-                    showToast("Für dieses Modell ist keine herunterladbare Datei hinterlegt.", "error");
-                    return;
-                }
-
-                const link = document.createElement('a');
-                link.href = downloadHref;
-                link.download = model.fileName || `modell.${(model.fileExt || 'stl').toLowerCase()}`;
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-
-                if (revokeNeeded) {
-                    setTimeout(() => URL.revokeObjectURL(downloadHref), 5000);
-                }
-
-                model.downloads = (model.downloads || 0) + 1;
-                await persistModelStatsUpdate(model, { downloads: model.downloads });
-
-                if (activeDetailModelId === model.id) {
-                    document.getElementById('detail-downloads-count').textContent = model.downloads;
-                }
-                renderModels();
-                showToast(`Download gestartet: ${model.fileName}`, "success");
-            } catch (err) {
-                console.error("Download-Fehler:", err);
-                showToast("Fehler beim Herunterladen der 3D-Datei.", "error");
+                const idb = await openIndexedDB();
+                return new Promise((resolve, reject) => {
+                    const tx = idb.transaction("models", "readwrite");
+                    tx.objectStore("models").put(model);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (e) {
+                console.warn("IndexedDB Speicherhinweis:", e);
             }
         }
 
-        // 9. Detail-Modal, Download, Like, Save, Folgen & Admin-Controls
-        window.openDetailModal = function(model) {
-            activeDetailModelId = model.id;
-            const fallbackImg = `https://placehold.co/800x450/1e222b/10b981?text=${encodeURIComponent(model.fileExt || '3D')}+Modell`;
-            document.getElementById('detail-category-badge').textContent = model.category || 'Allgemein';
-            document.getElementById('detail-title').textContent = model.title;
-            const detailImg = document.getElementById('detail-image');
-            detailImg.src = model.imageUrl || fallbackImg;
-            detailImg.onerror = () => { detailImg.src = fallbackImg; };
-
-            const creatorKey = model.creatorId || model.creatorName || 'unknown';
-            const followersCount = getCreatorFollowersCount(model);
-            const isLiked = userLikedIds.includes(model.id);
-            const isSaved = userSavedIds.includes(model.id);
-            const isFollowing = userFollowedCreators.includes(creatorKey);
-
-            document.getElementById('detail-file-ext-badge').textContent = `.${model.fileExt || 'STL'}`;
-            document.getElementById('detail-creator-avatar').textContent = (model.creatorName || 'M').substring(0, 2).toUpperCase();
-            document.getElementById('detail-creator-name').textContent = model.creatorName || 'Unbekannt';
-            document.getElementById('detail-creator-followers').textContent = followersCount;
-            document.getElementById('detail-date').textContent = model.createdAt ? new Date(model.createdAt).toLocaleDateString('de-DE') : '';
-            document.getElementById('detail-filename').textContent = model.fileName || 'modell.stl';
-            document.getElementById('detail-filesize').textContent = model.fileSize || '';
-
-            document.getElementById('detail-likes-count').textContent = model.likes || 0;
-            document.getElementById('detail-saves-count').textContent = model.saves || 0;
-            document.getElementById('detail-downloads-count').textContent = model.downloads || 0;
-            document.getElementById('detail-followers-stat-count').textContent = followersCount;
-
-            document.getElementById('detail-like-icon').className = `${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart text-rose-500`;
-            document.getElementById('detail-save-icon').className = `${isSaved ? 'fa-solid' : 'fa-regular'} fa-bookmark text-amber-400`;
-            document.getElementById('detail-follow-label').textContent = isFollowing ? "Gefolgt" : "Folgen";
-
-            document.getElementById('detail-material').textContent = model.material || 'PLA';
-            document.getElementById('detail-layer').textContent = model.layerHeight || '0.20 mm';
-            document.getElementById('detail-infill').textContent = model.infill || '15%';
-            document.getElementById('detail-supports').textContent = model.supports || 'Nein';
-            document.getElementById('detail-tutorial').textContent = model.tutorial || 'Keine Anleitung hinterlegt.';
-
-            document.getElementById('detail-download-btn').onclick = () => download3DModel(model);
-            document.getElementById('detail-like-btn').onclick = () => toggleLikeModel(model.id);
-            document.getElementById('detail-save-btn').onclick = () => toggleSaveModel(model.id);
-            document.getElementById('detail-follow-btn').onclick = () => toggleFollowCreator(creatorKey, model.creatorName || 'Creator');
-
-            // Admin-Kontrollpanel für die 4 Werte ein-/ausblenden
-            const adminPanel = document.getElementById('detail-admin-panel');
-            if (isAdmin) {
-                adminPanel.classList.remove('hidden');
-                document.getElementById('admin-edit-likes').value = model.likes || 0;
-                document.getElementById('admin-edit-saves').value = model.saves || 0;
-                document.getElementById('admin-edit-downloads').value = model.downloads || 0;
-                document.getElementById('admin-edit-followers').value = followersCount;
-            } else {
-                adminPanel.classList.add('hidden');
+        async function deleteLocalIndexedDBModel(modelId) {
+            try {
+                const idb = await openIndexedDB();
+                return new Promise((resolve, reject) => {
+                    const tx = idb.transaction("models", "readwrite");
+                    tx.objectStore("models").delete(modelId);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
+            } catch (e) {
+                console.warn("IndexedDB Löschhinweis:", e);
             }
+        }
 
-            const ownerActions = document.getElementById('detail-owner-actions');
-            const deleteLabel = document.getElementById('detail-delete-label');
-            const isOwner = currentUser && model.creatorId === currentUser.uid;
+        async function loadLocalIndexedDBModels() {
+            const loadingEl = document.getElementById('loading-state');
+            try {
+                const idb = await openIndexedDB();
+                const storedModels = await new Promise((resolve, reject) => {
+                    const tx = idb.transaction("models", "readonly");
+                    const req = tx.objectStore("models").getAll();
+                    req.onsuccess = () => resolve(req.result || []);
+                    req.onerror = () => reject(req.error);
+                });
 
-            if (isOwner || isAdmin) {
-                ownerActions.classList.remove('hidden');
-                ownerActions.classList.add('flex');
-                deleteLabel.textContent = isOwner ? "Eigenes Modell löschen" : "Modell löschen (Admin)";
-                document.getElementById('detail-delete-btn').onclick = () => deleteOwnModel(model.id);
-            } else {
-                ownerActions.classList.add('hidden');
-                ownerActions.classList.remove('flex');
+                const map = new Map();
+                allModels.forEach(m => map.set(m.id, m));
+                storedModels.forEach(m => {
+                    if (!map.has(m.id)) {
+                        map.set(m.id, m);
+                    } else if (m.fileBlob && !map.get(m.id).fileBlob) {
+                        map.get(m.id).fileBlob = m.fileBlob;
+                    }
+                });
+                allModels = Array.from(map.values());
+            } catch (e) {
+                console.warn("IndexedDB Ladefehler:", e);
+            } finally {
+                if (loadingEl) loadingEl.classList.add('hidden');
+                updateTabCounters();
+                renderModels();
             }
+        }
 
-            document.getElementById('detail-modal').classList.remove('hidden');
-        };
+        // 6. Kategorien, Profil & Admin-Steuerung
+        function initCategories() {
+            const bar = document.getElementById('category-bar');
+            const select = document.getElementById('model-category');
+            if (!bar || !select) return;
 
-        window.closeDetailModal = () => {
-            activeDetailModelId = null;
-            document.getElementById('detail-modal').classList.add('hidden');
-        };
-        window.openUploadModal = () => document.getElementById('upload-modal').classList.remove('hidden');
-        window.closeUploadModal = () => document.getElementById('upload-modal').classList.add('hidden');
-        window.openProfileModal = () => document.getElementById('profile-modal').classList.remove('hidden');
-        window.closeProfileModal = () => document.getElementById('profile-modal').classList.add('hidden');
+            bar.innerHTML = CATEGORIES.map(cat => `
+                <button onclick="selectCategory('${cat.id}')" id="cat-btn-${cat.id}"
+                        class="cat-btn shrink-0 flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${activeCategory === cat.id ? 'bg-brand-500 text-darkbg-950 font-bold shadow' : 'bg-darkbg-800 text-gray-300 hover:bg-darkbg-700 border border-gray-700/70'}">
+                    <i class="fa-solid ${cat.icon}"></i>
+                    <span>${cat.label}</span>
+                </button>
+            `).join('');
 
-        window.clearSearch = function() {
-            document.getElementById('search-input').value = '';
-            renderModels();
-        };
+            select.innerHTML = CATEGORIES.filter(c => c.id !== "Alle").map(cat => `
+                <option value="${cat.id}">${cat.label}</option>
+            `).join('');
+        }
 
-        window.resetFilters = function() {
-            activeCategory = "Alle";
-            setViewTab('all');
-            document.getElementById('search-input').value = '';
-            document.getElementById('current-view-title').firstElementChild.textContent = "Alle 3D-Druck-Modelle";
+        function selectCategory(catId) {
+            activeCategory = catId;
             initCategories();
             renderModels();
-        };
-        window.toggleLikeModel = async function(modelId) {
+        }
+
+        function setViewTab(tab) {
+            activeViewTab = tab;
+            document.querySelectorAll('.view-tab-btn').forEach(btn => {
+                btn.classList.remove('bg-white/10', 'text-white', 'border', 'border-white/15', 'font-bold');
+                btn.classList.add('text-gray-400', 'font-semibold');
+            });
+            const activeBtn = document.getElementById(`tab-${tab}`);
+            if (activeBtn) {
+                activeBtn.classList.add('bg-white/10', 'text-white', 'border', 'border-white/15', 'font-bold');
+                activeBtn.classList.remove('text-gray-400', 'font-semibold');
+            }
+            renderModels();
+        }
+
+        function resetFilters() {
+            activeCategory = "Alle";
+            activeViewTab = "all";
+            document.getElementById('search-input').value = "";
+            document.getElementById('clear-search-btn').classList.add('hidden');
+            initCategories();
+            setViewTab('all');
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = "";
+            document.getElementById('clear-search-btn').classList.add('hidden');
+            renderModels();
+        }
+
+        function updateHeaderProfileUI() {
+            const nameEl = document.getElementById('header-username');
+            const avatarEl = document.getElementById('header-avatar');
+            if (nameEl) nameEl.textContent = creatorName;
+            if (avatarEl) avatarEl.textContent = creatorName.substring(0, 2).toUpperCase();
+        }
+
+        function updateAdminUI() {
+            const badge = document.getElementById('admin-header-badge');
+            const statusText = document.getElementById('admin-status-text');
+            const activateBtn = document.getElementById('admin-activate-btn');
+            if (isAdmin) {
+                if (badge) badge.classList.replace('hidden', 'flex');
+                if (statusText) {
+                    statusText.textContent = "Admin-Rechte sind AKTIV! Du kannst Zahlen bearbeiten & Modelle moderieren.";
+                    statusText.className = "text-[11px] text-amber-400 font-semibold mt-1.5";
+                }
+                if (activateBtn) activateBtn.textContent = "Deaktivieren";
+            } else {
+                if (badge) badge.classList.replace('flex', 'hidden');
+                if (statusText) {
+                    statusText.textContent = "Mit Admin-Rechten kannst du beliebige Dateien anderer Creator moderieren und löschen.";
+                    statusText.className = "text-[11px] text-gray-500 mt-1.5";
+                }
+                if (activateBtn) activateBtn.textContent = "Aktivieren";
+            }
+        }
+
+        function openProfileModal() {
+            document.getElementById('creator-name-input').value = creatorName;
+            updateAdminUI();
+            document.getElementById('profile-modal').classList.remove('hidden');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profile-modal').classList.add('hidden');
+        }
+
+        function saveCreatorProfile(e) {
+            e.preventDefault();
+            const newName = document.getElementById('creator-name-input').value.trim();
+            if (newName) {
+                creatorName = newName;
+                localStorage.setItem('mf_creator_name', creatorName);
+                updateHeaderProfileUI();
+                showToast(`Creator-Name auf "${creatorName}" gespeichert!`, "success");
+            }
+            closeProfileModal();
+        }
+
+        function toggleAdminMode() {
+            if (isAdmin) {
+                isAdmin = false;
+                localStorage.setItem('mf_is_admin', 'false');
+                updateAdminUI();
+                if (activeDetailModelId) openDetailModal(activeDetailModelId);
+                showToast("Admin-Modus deaktiviert.", "info");
+                return;
+            }
+            const enteredCode = document.getElementById('admin-code-input').value.trim();
+            if (enteredCode === ADMIN_SECRET_CODE) {
+                isAdmin = true;
+                localStorage.setItem('mf_is_admin', 'true');
+                document.getElementById('admin-code-input').value = "";
+                updateAdminUI();
+                if (activeDetailModelId) openDetailModal(activeDetailModelId);
+                showToast("Admin-Rechte erfolgreich freigeschaltet!", "success");
+            } else {
+                showToast("Ungültiger Admin-Code!", "error");
+            }
+        }
+
+        // 7. Upload-Modal & Datei-Validierung
+        function openUploadModal() {
+            document.getElementById('upload-modal').classList.remove('hidden');
+        }
+
+        function closeUploadModal() {
+            document.getElementById('upload-modal').classList.add('hidden');
+            document.getElementById('upload-form').reset();
+            selected3DFile = null;
+            selectedImageBase64 = "";
+            document.getElementById('file-selected-name').textContent = "Klicke hier, um deine 3D-Druck-Datei auszuwählen";
+            document.getElementById('file-selected-meta').textContent = "Maximalgröße: 100 GB • Nur 3D-Druck-Dateien erlaubt.";
+            clearSelectedImage();
+        }
+
+        function validate3DFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!ALLOWED_3D_EXTENSIONS.includes(ext)) {
+                showToast(`Format .${ext} nicht erlaubt! Nur 3D-Druck-Dateien (${ALLOWED_3D_EXTENSIONS.join(', ').toUpperCase()}) sind zulässig.`, "error");
+                input.value = "";
+                selected3DFile = null;
+                return;
+            }
+
+            if (file.size > MAX_FILE_SIZE_BYTES) {
+                showToast("Datei überschreitet das Limit von 100 GB!", "error");
+                input.value = "";
+                selected3DFile = null;
+                return;
+            }
+
+            selected3DFile = {
+                rawFile: file,
+                name: file.name,
+                ext: ext,
+                size: file.size
+            };
+            document.getElementById('file-selected-name').textContent = file.name;
+            document.getElementById('file-selected-meta').textContent = `${formatBytes(file.size)} • Format: .${ext.toUpperCase()} (Gültige 3D-Datei)`;
+        }
+
+        function handleImageSelection(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                selectedImageBase64 = ev.target.result;
+                document.getElementById('image-file-label').textContent = file.name;
+                document.getElementById('image-preview-img').src = selectedImageBase64;
+                document.getElementById('image-preview-container').classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function previewImageUrl(url) {
+            if (url && url.trim().startsWith('http')) {
+                selectedImageBase64 = url.trim();
+                document.getElementById('image-preview-img').src = selectedImageBase64;
+                document.getElementById('image-preview-container').classList.remove('hidden');
+            }
+        }
+
+        function clearSelectedImage() {
+            selectedImageBase64 = "";
+            document.getElementById('model-image-input').value = "";
+            document.getElementById('model-image-url').value = "";
+            document.getElementById('image-file-label').textContent = "Bild vom Gerät wählen";
+            document.getElementById('image-preview-container').classList.add('hidden');
+        }
+
+        // 8. Likes, Saves, Folgen & Admin-Anpassungen
+        function getUserSet(key) {
+            try {
+                return new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+            } catch {
+                return new Set();
+            }
+        }
+
+        function saveUserSet(key, setObj) {
+            localStorage.setItem(key, JSON.stringify(Array.from(setObj)));
+        }
+
+        function updateTabCounters() {
+            const likedSet = getUserSet('mf_liked_models');
+            const savedSet = getUserSet('mf_saved_models');
+            const followSet = getUserSet('mf_followed_creators');
+            document.getElementById('liked-tab-count').textContent = likedSet.size;
+            document.getElementById('saved-tab-count').textContent = savedSet.size;
+            document.getElementById('following-tab-count').textContent = followSet.size;
+        }
+
+        async function toggleLikeModel(modelId, ev) {
+            if (ev) ev.stopPropagation();
             const model = allModels.find(m => m.id === modelId);
             if (!model) return;
-            const alreadyLiked = userLikedIds.includes(modelId);
-            const delta = alreadyLiked ? -1 : 1;
 
-            if (alreadyLiked) {
-                userLikedIds = userLikedIds.filter(id => id !== modelId);
+            const likedSet = getUserSet('mf_liked_models');
+            if (likedSet.has(modelId)) {
+                likedSet.delete(modelId);
+                model.likes = Math.max(0, (model.likes || 0) - 1);
             } else {
-                userLikedIds.push(modelId);
+                likedSet.add(modelId);
+                model.likes = (model.likes || 0) + 1;
             }
-            persistUserInteractions();
-
-            model.likes = Math.max(0, (model.likes || 0) + delta);
+            saveUserSet('mf_liked_models', likedSet);
+            updateTabCounters();
+            renderModels();
+            if (activeDetailModelId === modelId) openDetailModal(modelId);
             await persistModelStatsUpdate(model, { likes: model.likes });
+        }
 
-            if (activeDetailModelId === model.id) openDetailModal(model);
-            renderModels();
-            showToast(alreadyLiked ? "Like entfernt." : "Modell gelikt!", alreadyLiked ? "info" : "success");
-        };
-
-        window.toggleSaveModel = async function(modelId) {
+        async function toggleSaveModel(modelId, ev) {
+            if (ev) ev.stopPropagation();
             const model = allModels.find(m => m.id === modelId);
             if (!model) return;
-            const alreadySaved = userSavedIds.includes(modelId);
-            const delta = alreadySaved ? -1 : 1;
 
-            if (alreadySaved) {
-                userSavedIds = userSavedIds.filter(id => id !== modelId);
+            const savedSet = getUserSet('mf_saved_models');
+            if (savedSet.has(modelId)) {
+                savedSet.delete(modelId);
+                model.saves = Math.max(0, (model.saves || 0) - 1);
             } else {
-                userSavedIds.push(modelId);
+                savedSet.add(modelId);
+                model.saves = (model.saves || 0) + 1;
             }
-            persistUserInteractions();
-
-            model.saves = Math.max(0, (model.saves || 0) + delta);
-            await persistModelStatsUpdate(model, { saves: model.saves });
-
-            if (activeDetailModelId === model.id) openDetailModal(model);
+            saveUserSet('mf_saved_models', savedSet);
+            updateTabCounters();
             renderModels();
-            showToast(alreadySaved ? "Aus Gespeicherten entfernt." : "Modell in deiner Liste gespeichert!", alreadySaved ? "info" : "success");
-        };
+            if (activeDetailModelId === modelId) openDetailModal(modelId);
+            await persistModelStatsUpdate(model, { saves: model.saves });
+        }
 
-        window.toggleFollowCreator = async function(creatorKey, creatorDisplayName) {
-            if (!creatorKey) return;
-            const alreadyFollowing = userFollowedCreators.includes(creatorKey);
-            const delta = alreadyFollowing ? -1 : 1;
+        async function toggleFollowCreator(targetCreatorId, modelId, ev) {
+            if (ev) ev.stopPropagation();
+            const followSet = getUserSet('mf_followed_creators');
+            const isFollowing = followSet.has(targetCreatorId);
+            const delta = isFollowing ? -1 : 1;
 
-            if (alreadyFollowing) {
-                userFollowedCreators = userFollowedCreators.filter(k => k !== creatorKey);
+            if (isFollowing) {
+                followSet.delete(targetCreatorId);
             } else {
-                userFollowedCreators.push(creatorKey);
+                followSet.add(targetCreatorId);
             }
+            saveUserSet('mf_followed_creators', followSet);
 
-            const sampleModel = allModels.find(m => (m.creatorId || m.creatorName) === creatorKey);
-            const currentFollowers = sampleModel ? getCreatorFollowersCount(sampleModel) : (creatorFollowerMap[creatorKey] || 0);
-            const updatedFollowers = Math.max(0, currentFollowers + delta);
-            creatorFollowerMap[creatorKey] = updatedFollowers;
-            persistUserInteractions();
-
-            // Follower-Zahl bei allen Modellen dieses Creators synchronisieren
+            // Follower-Zahl bei allen Modellen dieses Creators aktualisieren
             for (const m of allModels) {
-                if ((m.creatorId || m.creatorName) === creatorKey) {
-                    m.creatorFollowers = updatedFollowers;
-                    await persistModelStatsUpdate(m, { creatorFollowers: updatedFollowers });
+                if (m.creatorId === targetCreatorId) {
+                    m.creatorFollowers = Math.max(0, (m.creatorFollowers || 0) + delta);
+                    await persistModelStatsUpdate(m, { creatorFollowers: m.creatorFollowers });
                 }
             }
-
-            if (activeDetailModelId) {
-                const currentModel = allModels.find(m => m.id === activeDetailModelId);
-                if (currentModel) openDetailModal(currentModel);
-            }
+            updateTabCounters();
             renderModels();
-            showToast(alreadyFollowing ? `Du folgst ${creatorDisplayName} nicht mehr.` : `Du folgst jetzt ${creatorDisplayName}!`, "success");
-        };
+            if (activeDetailModelId === modelId) openDetailModal(modelId);
+            showToast(isFollowing ? "Creator entfolgt." : "Du folgst diesem Creator jetzt!", "info");
+        }
 
-        window.adminBoostAllStats = function() {
-            if (!isAdmin) return;
-            const l = document.getElementById('admin-edit-likes');
-            const s = document.getElementById('admin-edit-saves');
-            const d = document.getElementById('admin-edit-downloads');
-            const f = document.getElementById('admin-edit-followers');
-            l.value = (parseInt(l.value, 10) || 0) + 100;
-            s.value = (parseInt(s.value, 10) || 0) + 100;
-            d.value = (parseInt(d.value, 10) || 0) + 100;
-            f.value = (parseInt(f.value, 10) || 0) + 100;
-            saveAdminStatsChanges();
-        };
+        async function adminBoostAllStats() {
+            if (!isAdmin || !activeDetailModelId) return;
+            document.getElementById('admin-edit-likes').value = (parseInt(document.getElementById('admin-edit-likes').value, 10) || 0) + 100;
+            document.getElementById('admin-edit-saves').value = (parseInt(document.getElementById('admin-edit-saves').value, 10) || 0) + 100;
+            document.getElementById('admin-edit-downloads').value = (parseInt(document.getElementById('admin-edit-downloads').value, 10) || 0) + 100;
+            document.getElementById('admin-edit-followers').value = (parseInt(document.getElementById('admin-edit-followers').value, 10) || 0) + 100;
+            await saveAdminStatsChanges();
+        }
 
-        window.saveAdminStatsChanges = async function() {
+        async function saveAdminStatsChanges() {
             if (!isAdmin || !activeDetailModelId) return;
             const model = allModels.find(m => m.id === activeDetailModelId);
             if (!model) return;
 
-            const newLikes = Math.max(0, parseInt(document.getElementById('admin-edit-likes').value, 10) || 0);
-            const newSaves = Math.max(0, parseInt(document.getElementById('admin-edit-saves').value, 10) || 0);
-            const newDownloads = Math.max(0, parseInt(document.getElementById('admin-edit-downloads').value, 10) || 0);
-            const newFollowers = Math.max(0, parseInt(document.getElementById('admin-edit-followers').value, 10) || 0);
-
-            const creatorKey = model.creatorId || model.creatorName || 'unknown';
-            creatorFollowerMap[creatorKey] = newFollowers;
-            persistUserInteractions();
-
-            model.likes = newLikes;
-            model.saves = newSaves;
-            model.downloads = newDownloads;
-            model.creatorFollowers = newFollowers;
+            model.likes = Math.max(0, parseInt(document.getElementById('admin-edit-likes').value, 10) || 0);
+            model.saves = Math.max(0, parseInt(document.getElementById('admin-edit-saves').value, 10) || 0);
+            model.downloads = Math.max(0, parseInt(document.getElementById('admin-edit-downloads').value, 10) || 0);
+            model.creatorFollowers = Math.max(0, parseInt(document.getElementById('admin-edit-followers').value, 10) || 0);
 
             await persistModelStatsUpdate(model, {
-                likes: newLikes,
-                saves: newSaves,
-                downloads: newDownloads,
-                creatorFollowers: newFollowers
+                likes: model.likes,
+                saves: model.saves,
+                downloads: model.downloads,
+                creatorFollowers: model.creatorFollowers
             });
-
-            for (const m of allModels) {
-                if (m.id !== model.id && (m.creatorId || m.creatorName) === creatorKey) {
-                    m.creatorFollowers = newFollowers;
-                    await persistModelStatsUpdate(m, { creatorFollowers: newFollowers });
-                }
-            }
-
-            openDetailModal(model);
             renderModels();
-            showToast("Admin-Änderungen für alle 4 Werte gespeichert!", "success");
-        };
+            openDetailModal(model.id);
+            showToast("Admin-Werte dauerhaft gespeichert!", "success");
+        }
 
         async function persistModelStatsUpdate(model, fields) {
             try {
@@ -1590,26 +1361,214 @@
                 if (isCloudMode && firestoreFns && db) {
                     const modelRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
                     await firestoreFns.setDoc(modelRef, fields, { merge: true });
+                } else {
+                    await pushPublicCommunityFeed();
                 }
             } catch (err) {
                 console.error("Fehler beim Aktualisieren der Modell-Statistiken:", err);
             }
         }
 
-        async function like3DModel(model) {
-            try {
-                if (isCloudMode && firestoreFns) {
-                    const modelRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
-                    await firestoreFns.updateDoc(modelRef, { likes: firestoreFns.increment(1) });
-                } else {
-                    model.likes = (model.likes || 0) + 1;
-                    await saveLocalIndexedDBModel(model);
-                    renderModels();
+        // 9. Karten-Rendering, Detail-Ansicht & Download
+        function renderModels() {
+            const grid = document.getElementById('models-grid');
+            const emptyState = document.getElementById('empty-state');
+            const query = document.getElementById('search-input').value.trim().toLowerCase();
+            const sortBy = document.getElementById('sort-select').value;
+
+            const likedSet = getUserSet('mf_liked_models');
+            const savedSet = getUserSet('mf_saved_models');
+            const followSet = getUserSet('mf_followed_creators');
+
+            let filtered = allModels.filter(m => {
+                if (activeViewTab === 'liked' && !likedSet.has(m.id)) return false;
+                if (activeViewTab === 'saved' && !savedSet.has(m.id)) return false;
+                if (activeViewTab === 'following' && !followSet.has(m.creatorId)) return false;
+                if (activeCategory !== "Alle" && m.category !== activeCategory) return false;
+                if (query) {
+                    const hay = `${m.title} ${m.creatorName} ${m.tutorial} ${m.category}`.toLowerCase();
+                    if (!hay.includes(query)) return false;
                 }
-                document.getElementById('detail-likes-count').textContent = model.likes;
-                showToast("Like vergeben! Danke für deine Unterstützung.", "success");
-            } catch (err) {
-                console.error("Like Fehler:", err);
+                return true;
+            });
+
+            filtered.sort((a, b) => {
+                if (sortBy === 'downloads') return (b.downloads || 0) - (a.downloads || 0);
+                if (sortBy === 'likes') return (b.likes || 0) - (a.likes || 0);
+                return (b.createdAt || 0) - (a.createdAt || 0);
+            });
+
+            document.getElementById('models-count-badge').textContent = filtered.length;
+
+            if (filtered.length === 0) {
+                grid.innerHTML = "";
+                emptyState.classList.replace('hidden', 'flex');
+                return;
+            }
+            emptyState.classList.replace('flex', 'hidden');
+
+            grid.innerHTML = filtered.map(model => {
+                const isLiked = likedSet.has(model.id);
+                const isSaved = savedSet.has(model.id);
+                const fallbackImg = `https://placehold.co/600x400/161920/34d399?text=${encodeURIComponent(model.title.substring(0, 18))}`;
+                const imgSrc = model.imageUrl || fallbackImg;
+
+                return `
+                <article onclick="openDetailModal('${model.id}')" class="group bg-darkbg-800/90 hover:bg-darkbg-800 border border-gray-800 hover:border-brand-500/50 rounded-2xl overflow-hidden shadow-card transition-all duration-300 cursor-pointer flex flex-col">
+                    <div class="relative aspect-video bg-darkbg-900 overflow-hidden">
+                        <img src="${imgSrc}" onerror="this.src='${fallbackImg}'" alt="${escapeHtml(model.title)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                        <span class="absolute top-3 left-3 bg-black/75 backdrop-blur-md text-brand-400 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-brand-500/30">
+                            ${escapeHtml(model.category)}
+                        </span>
+                        <span class="absolute top-3 right-3 bg-black/75 backdrop-blur-md text-gray-200 font-mono text-[11px] font-bold px-2 py-1 rounded-lg uppercase">
+                            .${escapeHtml(model.fileExt || 'stl')}
+                        </span>
+                    </div>
+                    <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+                        <div>
+                            <h3 class="font-bold text-white group-hover:text-brand-400 transition-colors line-clamp-1">${escapeHtml(model.title)}</h3>
+                            <div class="flex items-center justify-between text-xs text-gray-400 mt-1.5">
+                                <span class="flex items-center gap-1.5 truncate">
+                                    <i class="fa-solid fa-user-astronaut text-brand-400"></i>
+                                    <strong class="text-gray-200 truncate">${escapeHtml(model.creatorName || 'Maker')}</strong>
+                                </span>
+                                <span class="text-[11px] text-sky-400 font-semibold shrink-0">
+                                    <i class="fa-solid fa-users text-[10px]"></i> ${model.creatorFollowers || 0}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="pt-2.5 border-t border-gray-700/70 flex items-center justify-between text-xs text-gray-300">
+                            <button onclick="toggleLikeModel('${model.id}', event)" class="flex items-center gap-1 hover:text-rose-400 transition-colors ${isLiked ? 'text-rose-500 font-bold' : ''}">
+                                <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
+                                <span>${model.likes || 0}</span>
+                            </button>
+                            <button onclick="toggleSaveModel('${model.id}', event)" class="flex items-center gap-1 hover:text-amber-400 transition-colors ${isSaved ? 'text-amber-400 font-bold' : ''}">
+                                <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-bookmark"></i>
+                                <span>${model.saves || 0}</span>
+                            </button>
+                            <span class="flex items-center gap-1 text-brand-400 font-semibold">
+                                <i class="fa-solid fa-download"></i>
+                                <span>${model.downloads || 0}</span>
+                            </span>
+                        </div>
+                    </div>
+                </article>`;
+            }).join('');
+        }
+
+        function openDetailModal(modelId) {
+            const model = allModels.find(m => m.id === modelId);
+            if (!model) return;
+            activeDetailModelId = modelId;
+
+            const likedSet = getUserSet('mf_liked_models');
+            const savedSet = getUserSet('mf_saved_models');
+            const followSet = getUserSet('mf_followed_creators');
+            const isLiked = likedSet.has(modelId);
+            const isSaved = savedSet.has(modelId);
+            const isFollowing = followSet.has(model.creatorId);
+
+            const fallbackImg = `https://placehold.co/800x500/161920/34d399?text=${encodeURIComponent(model.title)}`;
+            document.getElementById('detail-category-badge').textContent = model.category;
+            document.getElementById('detail-title').textContent = model.title;
+            document.getElementById('detail-image').src = model.imageUrl || fallbackImg;
+            document.getElementById('detail-file-ext-badge').textContent = `.${(model.fileExt || 'stl').toUpperCase()}`;
+            document.getElementById('detail-creator-avatar').textContent = (model.creatorName || "CR").substring(0, 2).toUpperCase();
+            document.getElementById('detail-creator-name').textContent = model.creatorName || "Unbekannt";
+            document.getElementById('detail-creator-followers').textContent = model.creatorFollowers || 0;
+            document.getElementById('detail-filename').textContent = model.fileName || "modell.stl";
+            document.getElementById('detail-filesize').textContent = model.fileSizeFormatted || "1.0 MB";
+            document.getElementById('detail-date').textContent = new Date(model.createdAt || Date.now()).toLocaleDateString('de-DE');
+
+            document.getElementById('detail-likes-count').textContent = model.likes || 0;
+            document.getElementById('detail-saves-count').textContent = model.saves || 0;
+            document.getElementById('detail-downloads-count').textContent = model.downloads || 0;
+            document.getElementById('detail-followers-stat-count').textContent = model.creatorFollowers || 0;
+
+            document.getElementById('detail-like-icon').className = `${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart text-rose-500`;
+            document.getElementById('detail-save-icon').className = `${isSaved ? 'fa-solid' : 'fa-regular'} fa-bookmark text-amber-400`;
+            document.getElementById('detail-follow-label').textContent = isFollowing ? "Gefolgt" : "Folgen";
+
+            document.getElementById('detail-like-btn').onclick = () => toggleLikeModel(model.id);
+            document.getElementById('detail-save-btn').onclick = () => toggleSaveModel(model.id);
+            document.getElementById('detail-follow-btn').onclick = () => toggleFollowCreator(model.creatorId, model.id);
+            document.getElementById('detail-download-btn').onclick = () => download3DModel(model.id);
+
+            const ps = model.printSettings || {};
+            document.getElementById('detail-material').textContent = ps.material || "PLA";
+            document.getElementById('detail-layer').textContent = ps.layerHeight || "0.20 mm";
+            document.getElementById('detail-infill').textContent = ps.infill || "15%";
+            document.getElementById('detail-supports').textContent = ps.supports || "Nein";
+            document.getElementById('detail-tutorial').textContent = model.tutorial || "Keine Anleitung hinterlegt.";
+
+            // Admin-Panel einblenden
+            const adminPanel = document.getElementById('detail-admin-panel');
+            if (isAdmin) {
+                adminPanel.classList.remove('hidden');
+                document.getElementById('admin-edit-likes').value = model.likes || 0;
+                document.getElementById('admin-edit-saves').value = model.saves || 0;
+                document.getElementById('admin-edit-downloads').value = model.downloads || 0;
+                document.getElementById('admin-edit-followers').value = model.creatorFollowers || 0;
+            } else {
+                adminPanel.classList.add('hidden');
+            }
+
+            // Lösch-Button für eigenen Creator oder Admin
+            const ownerActions = document.getElementById('detail-owner-actions');
+            const isOwner = currentUser && model.creatorId === currentUser.uid;
+            if (isOwner || isAdmin) {
+                ownerActions.classList.replace('hidden', 'flex');
+                document.getElementById('detail-delete-label').textContent = isAdmin && !isOwner
+                    ? "Modell löschen (Admin)"
+                    : "Eigenes Modell löschen";
+                document.getElementById('detail-delete-btn').onclick = () => deleteOwnModel(model.id);
+            } else {
+                ownerActions.classList.replace('flex', 'hidden');
+            }
+
+            document.getElementById('detail-modal').classList.remove('hidden');
+        }
+
+        function closeDetailModal() {
+            activeDetailModelId = null;
+            document.getElementById('detail-modal').classList.add('hidden');
+        }
+
+        async function download3DModel(modelId) {
+            const model = allModels.find(m => m.id === modelId);
+            if (!model) return;
+
+            model.downloads = (model.downloads || 0) + 1;
+            renderModels();
+            if (activeDetailModelId === modelId) {
+                document.getElementById('detail-downloads-count').textContent = model.downloads;
+            }
+            await persistModelStatsUpdate(model, { downloads: model.downloads });
+
+            if (model.fileDownloadUrl) {
+                window.open(model.fileDownloadUrl, '_blank');
+                showToast(`Download gestartet: ${model.fileName}`, "success");
+                return;
+            }
+
+            let blobToDownload = model.fileBlob;
+            if (!blobToDownload && model.fileDataBase64) {
+                const res = await fetch(model.fileDataBase64);
+                blobToDownload = await res.blob();
+            }
+
+            if (blobToDownload) {
+                const url = URL.createObjectURL(blobToDownload);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = model.fileName || `${model.title}.${model.fileExt || 'stl'}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                showToast(`Download gestartet: ${a.download}`, "success");
+            } else {
+                showToast("Die 3D-Datei wurde in einer anderen Sitzung lokal gespeichert und ist hier nur als Vorschau hinterlegt.", "info");
             }
         }
 
@@ -1617,6 +1576,7 @@
             try {
                 const targetModel = allModels.find(m => m.id === modelId);
                 await deleteLocalIndexedDBModel(modelId);
+                allModels = allModels.filter(m => m.id !== modelId);
                 if (isCloudMode && firestoreFns && db) {
                     if (targetModel && targetModel.storagePath && storageFns && storage) {
                         try {
@@ -1624,6 +1584,8 @@
                         } catch (e) {}
                     }
                     await firestoreFns.deleteDoc(firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', modelId));
+                } else {
+                    await pushPublicCommunityFeed();
                 }
                 await loadLocalIndexedDBModels();
                 closeDetailModal();
@@ -1634,7 +1596,16 @@
             }
         }
 
-        // 10. Hilfsfunktionen
+        // 10. Hilfsfunktionen & Toast-Meldungen
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (err) => reject(err);
+                reader.readAsDataURL(file);
+            });
+        }
+
         function formatBytes(bytes) {
             if (!bytes || bytes === 0) return '0 Bytes';
             const k = 1024;
@@ -1644,48 +1615,50 @@
         }
 
         function escapeHtml(str) {
-            if (!str) return '';
-            return String(str)
+            return String(str || '')
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
+                .replace(/"/g, "&quot;");
         }
 
         function showToast(message, type = "info") {
             const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
             const colors = {
-                success: "bg-darkbg-800 border-brand-500 text-white",
-                error: "bg-darkbg-800 border-rose-500 text-rose-200",
-                info: "bg-darkbg-800 border-gray-600 text-gray-200"
+                success: "border-brand-500/50 bg-darkbg-800 text-brand-300",
+                error: "border-rose-500/50 bg-darkbg-800 text-rose-300",
+                info: "border-sky-500/50 bg-darkbg-800 text-sky-300"
             };
             const icons = {
                 success: "fa-circle-check text-brand-400",
                 error: "fa-circle-exclamation text-rose-400",
-                info: "fa-circle-info text-blue-400"
+                info: "fa-circle-info text-sky-400"
             };
 
-            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl text-sm font-medium transition-all duration-300 ${colors[type] || colors.info}`;
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-xl text-sm font-medium transition-all ${colors[type] || colors.info}`;
             toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${escapeHtml(message)}</span>`;
             container.appendChild(toast);
 
             setTimeout(() => {
                 toast.style.opacity = '0';
-                toast.style.transform = 'translateY(10px)';
+                toast.style.transform = 'translateY(8px)';
                 setTimeout(() => toast.remove(), 300);
             }, 3500);
         }
 
-        document.getElementById('search-input').addEventListener('input', renderModels);
+        // Such-Listener & Start
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const clearBtn = document.getElementById('clear-search-btn');
+            if (e.target.value.trim()) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+            renderModels();
+        });
 
-        // App direkt beim Laden starten
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initApp);
-        } else {
-            initApp();
-        }
+        window.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>
