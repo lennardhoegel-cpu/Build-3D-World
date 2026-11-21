@@ -1,0 +1,437 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build 3D World</title>
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #10131c;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+header {
+    height: 75px;
+    background: #191e2b;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6%;
+    border-bottom: 1px solid #30394a;
+}
+
+.logo {
+    font-size: 23px;
+    font-weight: bold;
+    color: #43a5ff;
+}
+
+nav {
+    display: flex;
+    gap: 25px;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+nav a:hover {
+    color: #43a5ff;
+}
+
+button {
+    background: #258cff;
+    border: none;
+    padding: 12px 20px;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+button:hover {
+    background: #0873e8;
+}
+
+.hero {
+    padding: 75px 6%;
+    background: linear-gradient(120deg, #172b4a, #10131c);
+}
+
+.hero h1 {
+    font-size: 45px;
+    margin-bottom: 15px;
+}
+
+.hero p {
+    color: #bdc9db;
+    font-size: 17px;
+    margin-bottom: 25px;
+}
+
+.search {
+    margin-top: 25px;
+    padding: 15px;
+    width: 100%;
+    max-width: 500px;
+    background: #202a3b;
+    border: 1px solid #45536b;
+    border-radius: 8px;
+    color: white;
+    font-size: 16px;
+}
+
+.container {
+    padding: 40px 6%;
+}
+
+.section-title {
+    font-size: 26px;
+    margin-bottom: 25px;
+}
+
+.models {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 22px;
+}
+
+.card {
+    background: #1b2230;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #30394a;
+    transition: 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card img {
+    width: 100%;
+    height: 190px;
+    object-fit: cover;
+    background: #293448;
+}
+
+.card-content {
+    padding: 16px;
+}
+
+.card h3 {
+    margin-bottom: 9px;
+}
+
+.card p {
+    color: #aebbd0;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.card button {
+    margin-top: 12px;
+    width: 100%;
+}
+
+.upload-section {
+    background: #1b2230;
+    margin: 40px 6%;
+    padding: 30px;
+    border-radius: 14px;
+    border: 1px solid #30394a;
+}
+
+.upload-section h2 {
+    margin-bottom: 20px;
+}
+
+input, textarea {
+    display: block;
+    width: 100%;
+    padding: 13px;
+    margin: 12px 0;
+    background: #101722;
+    border: 1px solid #46536a;
+    border-radius: 7px;
+    color: white;
+}
+
+input[type="file"] {
+    cursor: pointer;
+}
+
+textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+footer {
+    text-align: center;
+    padding: 30px;
+    color: #8996aa;
+    border-top: 1px solid #30394a;
+}
+
+.hidden {
+    display: none;
+}
+
+#message {
+    margin-top: 15px;
+    color: #65d99a;
+}
+
+@media(max-width: 650px) {
+    header {
+        height: auto;
+        padding: 20px;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    nav {
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .hero h1 {
+        font-size: 32px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <div class="logo">🌍 BUILD 3D WORLD</div>
+
+    <nav>
+        <a href="#home">Startseite</a>
+        <a href="#models">Modelle</a>
+        <a href="#upload">Hochladen</a>
+    </nav>
+</header>
+
+<section class="hero" id="home">
+    <h1>Entdecke die Welt des 3D-Drucks.</h1>
+
+    <p>
+        Entdecke coole 3D-Modelle, teile deine eigenen Kreationen
+        und werde Teil unserer Community!
+    </p>
+
+    <button onclick="location.href='#models'">
+        Modelle entdecken
+    </button>
+
+    <input
+        class="search"
+        id="search"
+        placeholder="🔍 Suche nach 3D-Modellen..."
+        oninput="searchModels()"
+    >
+</section>
+
+<section class="container" id="models">
+
+    <h2 class="section-title">🔥 Beliebte 3D-Modelle</h2>
+
+    <div class="models" id="modelList">
+
+        <div class="card">
+            <img src="https://images.unsplash.com/photo-1633412802994-5c058f151b66?w=600" alt="3D-Druck">
+            <div class="card-content">
+                <h3>3D Modell Beispiel</h3>
+                <p>Ein Beispiel für ein 3D-Druck-Projekt.</p>
+                <button onclick="alert('Beispielmodell – noch keine Datei vorhanden.')">
+                    Modell ansehen
+                </button>
+            </div>
+        </div>
+
+        <div class="card">
+            <img src="https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=600" alt="3D Design">
+            <div class="card-content">
+                <h3>Modernes Design</h3>
+                <p>Ein weiteres Beispiel für deine Galerie.</p>
+                <button onclick="alert('Beispielmodell – noch keine Datei vorhanden.')">
+                    Modell ansehen
+                </button>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<section class="upload-section" id="upload">
+
+    <h2>📤 Eigenes 3D-Modell hochladen</h2>
+
+    <p style="color:#aebbd0">
+        Teile deine Kreationen mit der Build 3D World Community!
+    </p>
+
+    <form id="uploadForm">
+
+        <input
+            type="text"
+            id="modelName"
+            placeholder="Name deines Modells"
+            required
+        >
+
+        <textarea
+            id="description"
+            placeholder="Beschreibung deines Modells..."
+            required
+        ></textarea>
+
+        <label>📷 Modellbild (Pflicht)</label>
+        <input
+            type="file"
+            id="modelImage"
+            accept="image/jpeg,image/png,image/webp"
+            required
+        >
+
+        <label>📦 3D-Druck-Datei (Pflicht)</label>
+        <input
+            type="file"
+            id="modelFile"
+            accept=".stl,.3mf,.obj,.gcode,.step,.stp"
+            required
+        >
+
+        <button type="submit">Modell veröffentlichen</button>
+
+        <p id="message"></p>
+
+    </form>
+</section>
+
+<footer>
+    © 2026 BUILD 3D WORLD – Deine 3D-Druck-Community 🌍
+</footer>
+
+<script>
+
+const allowedExtensions = [
+    "stl",
+    "3mf",
+    "obj",
+    "gcode",
+    "step",
+    "stp"
+];
+
+document.getElementById("uploadForm").addEventListener(
+    "submit",
+    function(event) {
+
+        event.preventDefault();
+
+        const name = document.getElementById("modelName").value;
+        const description = document.getElementById("description").value;
+        const image = document.getElementById("modelImage").files[0];
+        const file = document.getElementById("modelFile").files[0];
+        const message = document.getElementById("message");
+
+        if (!image || !file) {
+            alert("Bitte füge ein Modellbild und eine 3D-Datei hinzu!");
+            return;
+        }
+
+        const extension = file.name.split(".").pop().toLowerCase();
+
+        if (!allowedExtensions.includes(extension)) {
+            alert("Dieses Dateiformat ist nicht erlaubt!");
+            return;
+        }
+
+        if (!image.type.startsWith("image/")) {
+            alert("Bitte lade ein gültiges Bild hoch!");
+            return;
+        }
+
+        const imageURL = URL.createObjectURL(image);
+        const fileURL = URL.createObjectURL(file);
+
+        const card = document.createElement("div");
+        card.className = "card";
+
+        const img = document.createElement("img");
+        img.src = imageURL;
+        img.alt = name;
+
+        const content = document.createElement("div");
+        content.className = "card-content";
+
+        const title = document.createElement("h3");
+        title.textContent = name;
+
+        const desc = document.createElement("p");
+        desc.textContent = description;
+
+        const download = document.createElement("a");
+        download.href = fileURL;
+        download.download = file.name;
+        download.style.display = "block";
+        download.style.textDecoration = "none";
+
+        const btn = document.createElement("button");
+        btn.textContent = "⬇ 3D-Datei herunterladen";
+        btn.style.width = "100%";
+
+        download.appendChild(btn);
+
+        content.append(title, desc, download);
+        card.append(img, content);
+
+        document.getElementById("modelList").prepend(card);
+
+        document.getElementById("uploadForm").reset();
+
+        message.textContent = "Dein Modell wurde veröffentlicht! 🎉";
+
+        document.getElementById("models").scrollIntoView({
+            behavior: "smooth"
+        });
+    }
+);
+
+function searchModels() {
+
+    const query = document
+        .getElementById("search")
+        .value.toLowerCase();
+
+    const cards = document.querySelectorAll(".card");
+
+    cards.forEach(card => {
+
+        const text = card.textContent.toLowerCase();
+
+        card.style.display = text.includes(query)
+            ? ""
+            : "none";
+
+    });
+}
+
+</script>
+
+</body>
+</html>
