@@ -901,10 +901,14 @@
                     createdAt: Date.now()
                 };
 
-                // Immer lokal in IndexedDB speichern, damit das Modell auf jeden Fall dauerhaft bleibt
+                // Kompakte Dateien (bis 2.5 MB) zusätzlich als Base64 sichern (funktioniert in allen Browsern/Iframes)
                 let inlineBase64 = null;
                 if (selected3DFile.rawFile.size <= 2.5 * 1024 * 1024) {
-                    inlineBase64 = await fileToBase64(selected3DFile.rawFile);
+                    try {
+                        inlineBase64 = await fileToBase64(selected3DFile.rawFile);
+                    } catch (b64Err) {
+                        console.warn("Base64-Konvertierung übersprungen:", b64Err);
+                    }
                 }
 
                 const localModelRecord = {
@@ -913,12 +917,26 @@
                     fileBlob: selected3DFile.rawFile,
                     ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
                 };
-                await saveLocalIndexedDBModel(localModelRecord);
 
+                // 1. Sofort sichtbar in die aktive Liste einfügen
+                allModels.unshift(localModelRecord);
+                updateTabCounters();
+                renderModels();
+
+                // 2. Lokal in IndexedDB sichern (mit Fallback ohne Blob, falls Browser-Iframe Blobs blockiert)
+                try {
+                    await saveLocalIndexedDBModel(localModelRecord);
+                } catch (idbErr) {
+                    const fallbackRecord = { ...localModelRecord };
+                    delete fallbackRecord.fileBlob;
+                    await saveLocalIndexedDBModel(fallbackRecord).catch(() => {});
+                }
+
+                // 3. Optional in eigener Firebase Cloud speichern
                 if (isCloudMode && firestoreFns && db) {
-                    const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
-                    if (storageFns && storage) {
-                        try {
+                    try {
+                        const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
+                        if (storageFns && storage) {
                             const uniquePath = `artifacts/${appId}/public/models3d/${persistentId}_${selected3DFile.name}`;
                             const fileRef = storageFns.ref(storage, uniquePath);
                             await storageFns.uploadBytes(fileRef, selected3DFile.rawFile);
@@ -929,28 +947,20 @@
                                 fileDownloadUrl: downloadUrl,
                                 storagePath: uniquePath
                             });
-                        } catch (stUploadErr) {
-                            const b64 = inlineBase64 || await fileToBase64(selected3DFile.rawFile);
+                        } else {
                             await firestoreFns.setDoc(modelDocRef, {
                                 ...baseModelData,
-                                fileDataBase64: b64
+                                ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
                             });
                         }
-                    } else {
-                        const b64 = inlineBase64 || await fileToBase64(selected3DFile.rawFile);
-                        await firestoreFns.setDoc(modelDocRef, {
-                            ...baseModelData,
-                            fileDataBase64: b64
-                        });
+                    } catch (cloudErr) {
+                        console.warn("Cloud-Sync im Hintergrund:", cloudErr);
                     }
                 } else {
-                    allModels.unshift(localModelRecord);
-                    await pushPublicCommunityFeed();
+                    // 4. Community-Sync im Hintergrund anstoßen (blockiert nicht das Modal)
+                    pushPublicCommunityFeed().catch(() => {});
                 }
 
-                await loadLocalIndexedDBModels();
-                updateTabCounters();
-                renderModels();
                 closeUploadModal();
                 showToast("Dein 3D-Modell wurde erfolgreich veröffentlicht!", "success");
             } catch (err) {
