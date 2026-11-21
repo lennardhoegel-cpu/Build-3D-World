@@ -21,34 +21,40 @@
                     },
                     colors: {
                         brand: {
+                            300: '#6ee7b7',
                             400: '#34d399',
                             500: '#10b981', // MakerWorld-inspiriertes Smaragdgrün
                             600: '#059669',
                             700: '#047857',
                         },
                         darkbg: {
+                            950: '#090b0e',
                             900: '#0f1115',
                             800: '#161920',
                             700: '#1e222b',
                             600: '#2a2f3b'
                         }
+                    },
+                    boxShadow: {
+                        'glow': '0 0 25px -5px rgba(16, 185, 129, 0.25)',
+                        'card': '0 10px 30px -10px rgba(0, 0, 0, 0.6)'
                     }
                 }
             }
         }
     </script>
     <style>
-        /* Benutzerdefinierte Scrollbar für modernes Design */
+        /* Benutzerdefinierte Scrollbar & Glasmorphismus-Effekte */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #161920;
+            background: #0f1115;
         }
         ::-webkit-scrollbar-thumb {
             background: #2a2f3b;
-            border-radius: 4px;
+            border-radius: 999px;
         }
         ::-webkit-scrollbar-thumb:hover {
             background: #10b981;
@@ -60,35 +66,40 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        .hero-mesh {
+            background-image:
+                radial-gradient(at 15% 20%, rgba(16, 185, 129, 0.14) 0px, transparent 50%),
+                radial-gradient(at 85% 10%, rgba(52, 211, 153, 0.08) 0px, transparent 45%);
+        }
     </style>
 </head>
-<body class="bg-darkbg-900 text-gray-100 font-sans antialiased min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
+<body class="bg-darkbg-950 text-gray-100 font-sans antialiased min-h-screen flex flex-col selection:bg-brand-500 selection:text-white hero-mesh">
 
     <!-- Toast Benachrichtigungs-Container (Ersatz für alert) -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>
 
     <!-- Navigation Header -->
-    <header class="sticky top-0 z-40 bg-darkbg-800/90 backdrop-blur-md border-b border-gray-800">
+    <header class="sticky top-0 z-40 bg-darkbg-900/85 backdrop-blur-xl border-b border-gray-800/90 shadow-lg shadow-black/20">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16 gap-4">
                 
                 <!-- Logo -->
-                <div class="flex items-center gap-3 cursor-pointer shrink-0" onclick="resetFilters()">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
-                        <i class="fa-solid fa-cubes text-white text-xl"></i>
+                <div class="flex items-center gap-3 cursor-pointer shrink-0 group" onclick="resetFilters()">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 via-brand-500 to-brand-700 flex items-center justify-center shadow-lg shadow-brand-500/25 group-hover:scale-105 transition-transform">
+                        <i class="fa-solid fa-cubes text-darkbg-950 text-xl"></i>
                     </div>
                     <div>
-                        <span class="font-extrabold text-xl tracking-tight text-white">Maker<span class="text-brand-500">Forge</span></span>
-                        <span class="hidden sm:inline-block ml-1.5 text-[10px] uppercase tracking-wider bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full font-semibold">3D Hub</span>
+                        <span class="font-extrabold text-xl tracking-tight text-white">Maker<span class="text-brand-400">Forge</span></span>
+                        <span class="hidden sm:inline-block ml-1.5 text-[10px] uppercase tracking-wider bg-brand-500/15 text-brand-400 border border-brand-500/30 px-2 py-0.5 rounded-full font-bold">3D Studio</span>
                     </div>
                 </div>
 
                 <!-- Suchleiste -->
                 <div class="flex-1 max-w-xl">
                     <div class="relative group">
-                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-500 transition-colors"></i>
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-400 transition-colors"></i>
                         <input type="text" id="search-input" placeholder="Nach 3D-Modellen, Tutorials oder Creatorn suchen..." 
-                               class="w-full bg-darkbg-900 border border-gray-700/80 focus:border-brand-500 rounded-xl pl-10 pr-4 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all">
+                               class="w-full bg-darkbg-800/90 border border-gray-700/80 focus:border-brand-500 rounded-xl pl-10 pr-9 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all">
                         <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
@@ -98,26 +109,55 @@
                 <!-- Aktionen: Creator Name & Upload -->
                 <div class="flex items-center gap-2 sm:gap-3 shrink-0">
                     <!-- Admin Status Badge (sichtbar wenn Admin aktiv) -->
-                    <span id="admin-header-badge" class="hidden items-center gap-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2.5 py-1.5 rounded-xl text-xs font-bold">
-                        <i class="fa-solid fa-shield-halved"></i>
-                        <span class="hidden lg:inline">Admin</span>
+                    <span id="admin-header-badge" onclick="openProfileModal()" class="hidden cursor-pointer items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1.5 rounded-xl text-xs font-bold shadow-sm hover:border-amber-400 transition-all">
+                        <i class="fa-solid fa-crown"></i>
+                        <span class="hidden lg:inline">Admin aktiv</span>
                     </span>
 
-                    <!-- AI Foto zu 3D STL Generator Button -->
-                    <button onclick="openAiStlModal()" class="flex items-center gap-2 bg-purple-600/90 hover:bg-purple-500 text-white font-semibold px-3 py-2 rounded-xl text-sm shadow-lg shadow-purple-500/20 transition-all active:scale-95" title="Foto zu 3D-STL umwandeln">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i>
-                        <span class="hidden md:inline">Foto → 3D STL</span>
+                    <!-- Creator Profil Button -->
+                    <button onclick="openProfileModal()" class="flex items-center gap-2 bg-darkbg-800 hover:bg-darkbg-700 border border-gray-700/90 px-3 py-2 rounded-xl text-sm font-medium transition-all" title="Creator-Namen & Admin-Code">
+                        <div id="header-avatar" class="w-6 h-6 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-darkbg-950 flex items-center justify-center text-xs font-extrabold">MA</div>
+                        <span id="header-username" class="max-w-[110px] truncate text-gray-200 font-semibold">Maker</span>
                     </button>
 
-                    <!-- Creator Profil Button -->
-                    <button onclick="openProfileModal()" class="flex items-center gap-2 bg-darkbg-700 hover:bg-darkbg-600 border border-gray-700 px-3 py-2 rounded-xl text-sm font-medium transition-all" title="Creator-Namen & Admin-Code">
+                    <!-- Upload Button -->
+                    <button onclick="openUploadModal()" class="flex items-center gap-2 bg-gradient-to-r from-brand-400 to-brand-500 hover:from-brand-300 hover:to-brand-400 text-darkbg-950 font-extrabold px-3.5 py-2 rounded-xl text-sm shadow-glow transition-all active:scale-95">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span class="hidden sm:inline">Modell hochladen</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ansicht-Tabs (Alle / Gelikt / Gespeichert / Gefolgte Creator) -->
+        <div class="border-t border-gray-800/80 bg-darkbg-900/60">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4 overflow-x-auto no-scrollbar py-2">
+                <div class="flex items-center gap-1.5">
+                    <button onclick="setViewTab('all')" id="tab-all" class="view-tab-btn flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all bg-white/10 text-white border border-white/15">
+                        <i class="fa-solid fa-compass text-brand-400"></i>
+                        <span>Entdecken</span>
+                    </button>
+                    <button onclick="setViewTab('liked')" id="tab-liked" class="view-tab-btn flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all text-gray-400 hover:text-white hover:bg-darkbg-800">
+                        <i class="fa-solid fa-heart text-rose-500"></i>
+                        <span>Gelikte Modelle</span>
+                        <span id="liked-tab-count" class="bg-darkbg-700 text-gray-300 px-1.5 py-0.5 rounded-md text-[10px]">0</span>
+                    </button>
+                    <button onclick="setViewTab('saved')" id="tab-saved" class="view-tab-btn flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all text-gray-400 hover:text-white hover:bg-darkbg-800">
+                        <i class="fa-solid fa-bookmark text-amber-400"></i>
+                        <span>Gespeichert</span>
+                        <span id="saved-tab-count" class="bg-darkbg-700 text-gray-300 px-1.5 py-0.5 rounded-md text-[10px]">0</span>
+                    </button>
+                    <button onclick="setViewTab('following')" id="tab-following" class="view-tab-btn flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all text-gray-400 hover:text-white hover:bg-darkbg-800">
+                        <i class="fa-solid fa-user-check text-sky-400"></i>
+                        <span>Gefolgte Creator</span>
+                        <span id="following-tab-count" class="bg-darkbg-700 text-gray-300 px-1.5 py-0.5 rounded-md text-[10px]">0</span>
                     </button>
                 </div>
             </div>
         </div>
 
         <!-- Kategorien Leiste -->
-        <div class="border-t border-gray-800/80 bg-darkbg-800/50">
+        <div class="border-t border-gray-800/60 bg-darkbg-800/40">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div id="category-bar" class="flex items-center gap-2 py-2.5 overflow-x-auto no-scrollbar">
                     <!-- Kategorien werden dynamisch per JS eingefügt -->
@@ -398,104 +438,156 @@
                     <h2 id="detail-title" class="text-lg sm:text-xl font-bold text-white truncate">Modell Titel</h2>
                 </div>
                 <button onclick="closeDetailModal()" class="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-darkbg-700 shrink-0">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6 overflow-y-auto space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <!-- Vorschaubild -->
+                    <div class="md:col-span-7 relative rounded-2xl overflow-hidden bg-darkbg-900 border border-gray-800 aspect-video flex items-center justify-center">
+                        <img id="detail-image" src="" alt="3D Modell Vorschau" class="w-full h-full object-cover">
+                        <span id="detail-file-ext-badge" class="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md text-brand-400 font-mono text-xs font-bold px-3 py-1 rounded-lg border border-brand-500/30">
+                            .STL
+                        </span>
+                    </div>
+
+                    <!-- Download & Creator Box -->
+                    <div class="md:col-span-5 flex flex-col justify-between bg-darkbg-900/90 border border-gray-800 rounded-2xl p-5 space-y-4">
+                        <div>
+                            <!-- Creator Info + Folgen Button -->
+                            <div class="flex items-center justify-between gap-2 pb-3.5 border-b border-gray-800">
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                    <div id="detail-creator-avatar" class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-darkbg-950 flex items-center justify-center font-extrabold text-sm shrink-0">CR</div>
+                                    <div class="min-w-0">
+                                        <p class="text-[11px] text-gray-400">Creator</p>
+                                        <p id="detail-creator-name" class="text-sm font-bold text-white truncate">Creator</p>
+                                        <p class="text-[11px] text-sky-400 font-semibold flex items-center gap-1 mt-0.5">
+                                            <i class="fa-solid fa-users text-[10px]"></i>
+                                            <span id="detail-creator-followers">0</span> Follower
+                                        </p>
+                                    </div>
+                                </div>
+                                <button id="detail-follow-btn" class="shrink-0 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/40 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+                                    <i class="fa-solid fa-user-plus"></i>
+                                    <span id="detail-follow-label">Folgen</span>
+                                </button>
+                            </div>
+
+                            <div class="mt-3.5 space-y-1.5 text-xs">
+                                <div class="flex justify-between text-gray-400">
+                                    <span>Dateiname:</span>
+                                    <span id="detail-filename" class="text-gray-200 font-mono truncate max-w-[160px]">modell.stl</span>
+                                </div>
+                                <div class="flex justify-between text-gray-400">
+                                    <span>Dateigröße & Datum:</span>
+                                    <span class="text-gray-200"><span id="detail-filesize">1.2 MB</span> • <span id="detail-date">Heute</span></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2.5 pt-2">
+                            <button id="detail-download-btn" class="w-full bg-gradient-to-r from-brand-400 to-brand-500 hover:from-brand-300 hover:to-brand-400 text-darkbg-950 font-extrabold py-3 px-4 rounded-xl text-sm shadow-glow flex items-center justify-center gap-2 transition-all active:scale-95">
+                                <i class="fa-solid fa-download"></i>
+                                <span>3D-Datei herunterladen</span>
+                            </button>
+
+                            <!-- Alle 4 Kennzahlen: Likes, Saves, Downloads, Follower -->
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="detail-like-btn" class="bg-darkbg-800 hover:bg-darkbg-700 border border-gray-700 text-gray-200 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
+                                    <i id="detail-like-icon" class="fa-regular fa-heart text-rose-500"></i>
+                                    <span id="detail-likes-count">0</span> Likes
+                                </button>
+                                <button id="detail-save-btn" class="bg-darkbg-800 hover:bg-darkbg-700 border border-gray-700 text-gray-200 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
+                                    <i id="detail-save-icon" class="fa-regular fa-bookmark text-amber-400"></i>
+                                    <span id="detail-saves-count">0</span> Saves
+                                </button>
+                                <div class="bg-darkbg-800/80 border border-gray-800 text-gray-300 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-arrow-down text-brand-400"></i>
+                                    <span id="detail-downloads-count">0</span> Downloads
+                                </div>
+                                <div class="bg-darkbg-800/80 border border-gray-800 text-gray-300 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-users text-sky-400"></i>
+                                    <span id="detail-followers-stat-count">0</span> Follower
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Druckeinstellungen Leiste -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-darkbg-900/60 border border-gray-800 rounded-xl p-4">
+                    <div>
+                        <span class="block text-[11px] text-gray-500">Material</span>
+                        <span id="detail-material" class="text-sm font-semibold text-gray-200">PLA</span>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] text-gray-500">Schichthöhe</span>
+                        <span id="detail-layer" class="text-sm font-semibold text-gray-200">0.20 mm</span>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] text-gray-500">Infill</span>
+                        <span id="detail-infill" class="text-sm font-semibold text-gray-200">15%</span>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] text-gray-500">Stützstruktur</span>
+                        <span id="detail-supports" class="text-sm font-semibold text-gray-200">Nein</span>
+                    </div>
+                </div>
+
+                <!-- Tutorial / Bauanleitung -->
+                <div>
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-brand-400 mb-2.5 flex items-center gap-2">
+                        <i class="fa-solid fa-book-open"></i>
+                        <span>Druck-Tutorial & Bauanleitung</span>
+                    </h3>
+                    <div id="detail-tutorial" class="bg-darkbg-900 border border-gray-800 rounded-xl p-4 text-sm text-gray-300 whitespace-pre-line leading-relaxed">
+                        Anleitung wird geladen...
+                    </div>
+                </div>
+
+                <!-- ADMIN-KONTROLLPANEL (Nur sichtbar wenn Admin-Code aktiviert ist) -->
+                <div id="detail-admin-panel" class="hidden bg-gradient-to-r from-amber-950/40 via-darkbg-900 to-amber-950/30 border border-amber-500/40 rounded-2xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                            <i class="fa-solid fa-crown"></i>
+                            <span>Admin-Kontrolle: Werte anpassen & Boost</span>
+                        </h4>
+                        <button type="button" onclick="adminBoostAllStats()" class="bg-amber-500 hover:bg-amber-400 text-darkbg-950 font-extrabold px-3 py-1 rounded-lg text-xs transition-all flex items-center gap-1 shadow">
+                            <i class="fa-solid fa-bolt"></i> +100 auf alle 4 Werte
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-1">Likes</label>
+                            <input type="number" id="admin-edit-likes" min="0" class="w-full bg-darkbg-950 border border-amber-500/30 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-1">Gespeichert (Saves)</label>
+                            <input type="number" id="admin-edit-saves" min="0" class="w-full bg-darkbg-950 border border-amber-500/30 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-1">Downloads</label>
+                            <input type="number" id="admin-edit-downloads" min="0" class="w-full bg-darkbg-950 border border-amber-500/30 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-gray-400 mb-1">Creator-Follower</label>
+                            <input type="number" id="admin-edit-followers" min="0" class="w-full bg-darkbg-950 border border-amber-500/30 focus:border-amber-400 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold">
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="button" onclick="saveAdminStatsChanges()" class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 font-bold px-4 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1.5">
+                            <i class="fa-solid fa-floppy-disk"></i> Neue Zahlen speichern
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Lösch-Option für den eigenen Creator ODER Admin -->
                 <div id="detail-owner-actions" class="hidden justify-end pt-2">
                     <button id="detail-delete-btn" class="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/50 px-3 py-2 rounded-lg border border-rose-900/50 transition-colors flex items-center gap-1.5">
                         <i class="fa-solid fa-trash-can"></i> <span id="detail-delete-label">Eigenes Modell löschen</span>
                     </button>
-                </div>
-
-            </div>
-        </div>
-    </div>
-
-    <!-- ===================================================================== -->
-    <!-- MODAL 4: AI FOTO ZU 3D-STL GENERATOR                                  -->
-    <!-- ===================================================================== -->
-    <div id="ai-stl-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-        <div class="bg-darkbg-800 border border-gray-700 rounded-2xl max-w-4xl w-full p-6 my-8 shadow-2xl max-h-[92vh] overflow-y-auto">
-            <div class="flex items-center justify-between pb-4 border-b border-gray-700 mb-5">
-                <h2 class="text-xl font-bold text-white flex items-center gap-2.5">
-                    <div class="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    </div>
-                    <span>AI Foto → 3D-STL Generator</span>
-                </h2>
-                <button onclick="closeAiStlModal()" class="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-darkbg-700">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <!-- Linke Spalte: Foto Upload & Einstellungen -->
-                <div class="lg:col-span-5 space-y-4">
-                    <div onclick="document.getElementById('ai-photo-input').click()"
-                         class="border-2 border-dashed border-purple-500/50 hover:border-purple-400 bg-darkbg-900/70 rounded-xl p-5 text-center cursor-pointer transition-all">
-                        <input type="file" id="ai-photo-input" accept="image/*" class="hidden" onchange="handleAiPhotoUpload(this)">
-                        <i class="fa-solid fa-camera-retro text-3xl text-purple-400 mb-2"></i>
-                        <p id="ai-photo-label" class="text-sm font-semibold text-white">Foto oder Logo auswählen</p>
-                        <p class="text-xs text-gray-400 mt-1">Wandelt Helligkeit & Konturen automatisch in ein 3D-Relief / Lithophane-Mesh um.</p>
-                    </div>
-
-                    <div class="bg-darkbg-900/80 border border-gray-800 rounded-xl p-4 space-y-3">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-purple-400">3D-Mesh Einstellungen</h4>
-                        
-                        <div>
-                            <div class="flex justify-between text-xs text-gray-300 mb-1">
-                                <span>Breite (mm)</span>
-                                <span id="ai-width-val" class="font-mono text-purple-400">80 mm</span>
-                            </div>
-                            <input type="range" id="ai-width-range" min="30" max="180" value="80" oninput="document.getElementById('ai-width-val').textContent = this.value + ' mm'; updateAiPreview()"
-                                   class="w-full accent-purple-500">
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between text-xs text-gray-300 mb-1">
-                                <span>Relief-Höhe (mm)</span>
-                                <span id="ai-height-val" class="font-mono text-purple-400">4.0 mm</span>
-                            </div>
-                            <input type="range" id="ai-height-range" min="1" max="15" step="0.5" value="4" oninput="document.getElementById('ai-height-val').textContent = parseFloat(this.value).toFixed(1) + ' mm'; updateAiPreview()"
-                                   class="w-full accent-purple-500">
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between text-xs text-gray-300 mb-1">
-                                <span>Detail-Auflösung</span>
-                                <span id="ai-res-val" class="font-mono text-purple-400">120 px</span>
-                            </div>
-                            <input type="range" id="ai-res-range" min="50" max="200" step="10" value="120" oninput="document.getElementById('ai-res-val').textContent = this.value + ' px'; updateAiPreview()"
-                                   class="w-full accent-purple-500">
-                        </div>
-
-                        <div class="flex items-center justify-between pt-1">
-                            <span class="text-xs text-gray-300">Höhenprofil invertieren (Lithophane)</span>
-                            <input type="checkbox" id="ai-invert-check" onchange="updateAiPreview()" class="w-4 h-4 accent-purple-500 rounded">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Rechte Spalte: 3D-Höhenkarten-Vorschau & Export -->
-                <div class="lg:col-span-7 flex flex-col justify-between space-y-4">
-                    <div class="bg-darkbg-900 border border-gray-800 rounded-xl p-4 flex flex-col items-center justify-center min-h-[260px] relative">
-                        <span class="absolute top-3 left-3 text-[11px] font-semibold bg-purple-500/20 text-purple-300 px-2.5 py-1 rounded-lg">
-                            3D-Tiefenkarten-Vorschau
-                        </span>
-                        <canvas id="ai-preview-canvas" class="max-w-full max-h-[240px] rounded-lg shadow-lg border border-gray-800"></canvas>
-                        <p id="ai-empty-hint" class="text-xs text-gray-500">Lade links ein Foto hoch, um das 3D-Relief zu berechnen.</p>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <button type="button" onclick="downloadGeneratedStl()" id="ai-download-stl-btn" disabled
-                                class="disabled:opacity-40 disabled:cursor-not-allowed bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl text-sm shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transition-all">
-                            <i class="fa-solid fa-file-arrow-down"></i>
-                            <span>Als .STL herunterladen</span>
-                        </button>
-                        <button type="button" onclick="useGeneratedStlForUpload()" id="ai-publish-stl-btn" disabled
-                                class="disabled:opacity-40 disabled:cursor-not-allowed bg-brand-500 hover:bg-brand-600 text-darkbg-900 font-bold py-3 px-4 rounded-xl text-sm shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2 transition-all">
-                            <i class="fa-solid fa-cloud-arrow-up"></i>
-                            <span>Direkt veröffentlichen</span>
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -506,9 +598,8 @@
     <!-- ===================================================================== -->
     <script>
         // =========================================================================
-        // FÜR GITHUB PAGES: Trage hier deine eigenen Firebase-Daten ein, damit
-        // alle Nutzer weltweit deine Modelle sehen & bis zu 100 GB hochladen können.
-        // Solange hier "null" steht, startet die Seite SOFORT ohne Ladezeit!
+        // FÜR GITHUB PAGES: Trage hier optional deine eigenen Firebase-Daten ein,
+        // wenn du die Seite auf GitHub Pages mit weltweiter Cloud-Sync nutzt.
         // =========================================================================
         const CUSTOM_FIREBASE_CONFIG = null;
 
@@ -518,10 +609,21 @@
         // =========================================================================
         const ADMIN_SECRET_CODE = "MAKERFORGE-ADMIN-2026";
 
-        // 1. Globale App-Variablen & 100 GB Limit
+        // 1. Globale App-Variablen & Cloud-Erkennung
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'makerforge-3d-github';
         const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024 * 1024; // 100 GB Maximum
         const ALLOWED_3D_EXTENSIONS = ['stl', '3mf', 'obj', 'step', 'stp', 'amf', 'gcode'];
+
+        let resolvedFirebaseConfig = CUSTOM_FIREBASE_CONFIG;
+        if (!resolvedFirebaseConfig && typeof __firebase_config !== 'undefined' && __firebase_config) {
+            try {
+                resolvedFirebaseConfig = typeof __firebase_config === 'string'
+                    ? JSON.parse(__firebase_config)
+                    : __firebase_config;
+            } catch (e) {
+                resolvedFirebaseConfig = null;
+            }
+        }
 
         const CATEGORIES = [
             { id: "Alle", label: "Alle Modelle", icon: "fa-border-all" },
@@ -534,7 +636,7 @@
             { id: "Cosplay", label: "Cosplay & Requisiten", icon: "fa-mask" }
         ];
 
-        let isCloudMode = Boolean(CUSTOM_FIREBASE_CONFIG && CUSTOM_FIREBASE_CONFIG.apiKey);
+        let isCloudMode = Boolean(resolvedFirebaseConfig && resolvedFirebaseConfig.apiKey);
         let db = null, storage = null, firestoreFns = null, storageFns = null;
 
         let currentUser = null;
@@ -542,45 +644,104 @@
         let isAdmin = localStorage.getItem('mf_is_admin') === 'true';
         let allModels = [];
         let activeCategory = "Alle";
+        let activeViewTab = "all"; // 'all' | 'liked' | 'saved' | 'following'
+        let activeDetailModelId = null;
         let selected3DFile = null;
         let selectedImageBase64 = "";
-        let aiSourceImage = null;
 
-        // 2. Kategorien-Leiste & Dropdown initialisieren
+        // Persönliche Interaktionen (Likes, Gespeichert, Gefolgte Creator) dauerhaft merken
+        let userLikedIds = JSON.parse(localStorage.getItem('mf_liked_models') || '[]');
+        let userSavedIds = JSON.parse(localStorage.getItem('mf_saved_models') || '[]');
+        let userFollowedCreators = JSON.parse(localStorage.getItem('mf_followed_creators') || '[]');
+        let creatorFollowerMap = JSON.parse(localStorage.getItem('mf_creator_followers') || '{}');
+
+        function persistUserInteractions() {
+            localStorage.setItem('mf_liked_models', JSON.stringify(userLikedIds));
+            localStorage.setItem('mf_saved_models', JSON.stringify(userSavedIds));
+            localStorage.setItem('mf_followed_creators', JSON.stringify(userFollowedCreators));
+            localStorage.setItem('mf_creator_followers', JSON.stringify(creatorFollowerMap));
+            updateTabCounters();
+        }
+
+        function updateTabCounters() {
+            const likedCountEl = document.getElementById('liked-tab-count');
+            const savedCountEl = document.getElementById('saved-tab-count');
+            const followingCountEl = document.getElementById('following-tab-count');
+            if (likedCountEl) likedCountEl.textContent = allModels.filter(m => userLikedIds.includes(m.id)).length;
+            if (savedCountEl) savedCountEl.textContent = allModels.filter(m => userSavedIds.includes(m.id)).length;
+            if (followingCountEl) followingCountEl.textContent = userFollowedCreators.length;
+        }
+
+        window.setViewTab = function(tab) {
+            activeViewTab = tab;
+            document.querySelectorAll('.view-tab-btn').forEach(btn => {
+                btn.className = "view-tab-btn flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all text-gray-400 hover:text-white hover:bg-darkbg-800";
+            });
+            const activeBtn = document.getElementById(`tab-${tab}`);
+            if (activeBtn) {
+                activeBtn.className = "view-tab-btn flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all bg-white/10 text-white border border-white/15";
+            }
+
+            const titleSpan = document.getElementById('current-view-title').firstElementChild;
+            if (tab === 'liked') titleSpan.textContent = "Deine gelikten 3D-Modelle";
+            else if (tab === 'saved') titleSpan.textContent = "Deine gespeicherten 3D-Modelle";
+            else if (tab === 'following') titleSpan.textContent = "Modelle deiner gefolgten Creator";
+            else titleSpan.textContent = activeCategory === "Alle" ? "Alle 3D-Druck-Modelle" : `Kategorie: ${activeCategory}`;
+
+            renderModels();
+        };
+
+        // 2. Kategorien & Profil-Speicherung initialisieren
         function initCategories() {
-            const bar = document.getElementById('category-bar');
-            const select = document.getElementById('model-category');
-            bar.innerHTML = '';
-            select.innerHTML = '';
+            const catBar = document.getElementById('category-bar');
+            const catSelect = document.getElementById('model-category');
+            if (!catBar || !catSelect) return;
+
+            catBar.innerHTML = '';
+            catSelect.innerHTML = '';
 
             CATEGORIES.forEach(cat => {
+                const isActive = activeCategory === cat.id;
                 const btn = document.createElement('button');
-                const isActive = cat.id === activeCategory;
+                btn.type = 'button';
                 btn.className = `flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                    isActive 
-                    ? 'bg-brand-500 text-darkbg-900 shadow-md shadow-brand-500/20' 
-                    : 'bg-darkbg-700/70 text-gray-300 hover:bg-darkbg-600 hover:text-white'
+                    isActive
+                        ? 'bg-brand-500 text-darkbg-950 font-bold shadow-md shadow-brand-500/20'
+                        : 'bg-darkbg-800/80 text-gray-300 hover:bg-darkbg-700 hover:text-white border border-gray-800'
                 }`;
                 btn.innerHTML = `<i class="fa-solid ${cat.icon}"></i><span>${cat.label}</span>`;
                 btn.onclick = () => {
                     activeCategory = cat.id;
-                    document.getElementById('current-view-title').firstElementChild.textContent =
-                        cat.id === "Alle" ? "Alle 3D-Druck-Modelle" : `Kategorie: ${cat.label}`;
+                    if (activeViewTab === 'all') {
+                        document.getElementById('current-view-title').firstElementChild.textContent =
+                            cat.id === "Alle" ? "Alle 3D-Druck-Modelle" : `Kategorie: ${cat.label}`;
+                    }
                     initCategories();
                     renderModels();
                 };
-                bar.appendChild(btn);
+                catBar.appendChild(btn);
 
                 if (cat.id !== "Alle") {
                     const opt = document.createElement('option');
                     opt.value = cat.id;
                     opt.textContent = cat.label;
-                    select.appendChild(opt);
+                    catSelect.appendChild(opt);
                 }
             });
         }
 
-        // 3. Sofortiger App-Start ohne Wartezeit
+        window.saveCreatorProfile = function(e) {
+            e.preventDefault();
+            const newName = document.getElementById('creator-name-input').value.trim();
+            if (!newName) return;
+            creatorName = newName;
+            localStorage.setItem('mf_creator_name', creatorName);
+            updateHeaderProfileUI();
+            closeProfileModal();
+            showToast(`Creator-Name gespeichert: ${creatorName}`, "success");
+        };
+
+        // 3. App-Start & Reparatur der MakerForge Cloud-Datenbank-Verbindung
         async function initApp() {
             initCategories();
 
@@ -589,17 +750,93 @@
             currentUser = { uid: savedLocalId };
 
             document.getElementById('display-user-id').textContent = isCloudMode
-                ? `${currentUser.uid} (Cloud-Sync)`
+                ? "Verbinde mit MakerForge Cloud-Datenbank..."
                 : `${currentUser.uid} (GitHub Pages / Lokaler 100GB-Speicher)`;
             updateHeaderProfileUI();
             updateAdminUI();
 
-            // Sofort lokale IndexedDB-Modelle laden & Ladebildschirm schließen
-            await loadLocalIndexedDBModels();
-
-            // Optional: Cloud-Sync im Hintergrund starten, falls CUSTOM_FIREBASE_CONFIG gesetzt ist
             if (isCloudMode) {
-                startBackgroundCloudSync();
+                await connectMakerForgeCloud();
+            } else {
+                await loadLocalIndexedDBModels();
+            }
+        }
+
+        async function connectMakerForgeCloud() {
+            const loadingEl = document.getElementById('loading-state');
+            let cloudResolved = false;
+
+            // Sicherheits-Timeout (4 Sekunden), falls Cloud-Dienst blockiert ist (z.B. GitHub Pages ohne Regeln)
+            const fallbackTimer = setTimeout(async () => {
+                if (!cloudResolved) {
+                    console.warn("Cloud-Zeitüberschreitung – wechsle auf lokalen High-Capacity Speicher.");
+                    isCloudMode = false;
+                    document.getElementById('display-user-id').textContent = `${currentUser.uid} (Lokaler Fallback)`;
+                    await loadLocalIndexedDBModels();
+                }
+            }, 4000);
+
+            try {
+                const [{ initializeApp }, authMod, fsMod] = await Promise.all([
+                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
+                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"),
+                    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js")
+                ]);
+
+                const app = initializeApp(resolvedFirebaseConfig);
+                const auth = authMod.getAuth(app);
+                db = fsMod.getFirestore(app);
+                firestoreFns = fsMod;
+
+                // Optional Firebase Storage laden (falls konfiguriert)
+                try {
+                    const stMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js");
+                    storage = stMod.getStorage(app);
+                    storageFns = stMod;
+                } catch (stErr) {
+                    storage = null;
+                }
+
+                // Authentifizierung (Custom Token bevorzugt, sonst Anonym)
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await authMod.signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await authMod.signInAnonymously(auth);
+                }
+
+                const user = auth.currentUser;
+                if (!user) throw new Error("Kein authentifizierter Benutzer erhalten.");
+
+                currentUser = user;
+                document.getElementById('display-user-id').textContent = `${user.uid} (MakerForge Cloud aktiv)`;
+
+                const modelsCol = fsMod.collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
+                fsMod.onSnapshot(modelsCol, async (snapshot) => {
+                    cloudResolved = true;
+                    clearTimeout(fallbackTimer);
+                    if (loadingEl) loadingEl.classList.add('hidden');
+
+                    allModels = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                    // Synchronisiere auch den lokalen Backup-Speicher, damit Modelle nie verloren gehen
+                    for (const m of allModels) {
+                        saveLocalIndexedDBModel(m).catch(() => {});
+                    }
+                    updateTabCounters();
+                    renderModels();
+                }, async (err) => {
+                    console.error("Firestore Snapshot Fehler:", err);
+                    cloudResolved = true;
+                    clearTimeout(fallbackTimer);
+                    isCloudMode = false;
+                    await loadLocalIndexedDBModels();
+                });
+            } catch (err) {
+                console.error("Cloud-Verbindungsfehler:", err);
+                cloudResolved = true;
+                clearTimeout(fallbackTimer);
+                isCloudMode = false;
+                document.getElementById('display-user-id').textContent = `${currentUser.uid} (Lokaler Speicher)`;
+                await loadLocalIndexedDBModels();
             }
         }
 
@@ -664,13 +901,8 @@
                 const req = store.getAll();
                 req.onsuccess = async () => {
                     if (loadingEl) loadingEl.classList.add('hidden');
-                    const items = req.result || [];
-                    if (items.length === 0 && !window._seededLocal) {
-                        window._seededLocal = true;
-                        await seedDemoModels();
-                        return;
-                    }
-                    allModels = items;
+                    allModels = req.result || [];
+                    updateTabCounters();
                     renderModels();
                 };
                 req.onerror = () => {
@@ -753,93 +985,16 @@
             }
         };
 
-        window.saveCreatorProfile = function(e) {
-            e.preventDefault();
-            const newName = document.getElementById('creator-name-input').value.trim();
-            if (!newName) return;
-
-            creatorName = newName;
-            localStorage.setItem('mf_creator_name', creatorName);
-            updateHeaderProfileUI();
-            closeProfileModal();
-            showToast(`Creator-Name auf "${creatorName}" gespeichert!`, "success");
-        };
-
-        // 5. Demo-Modelle (inkl. Weihnachten)
-        async function seedDemoModels() {
-            const sampleStlContent = btoa("solid MakerForge_Demo\n  facet normal 0.0 0.0 1.0\n    outer loop\n      vertex 0.0 0.0 0.0\n      vertex 10.0 0.0 0.0\n      vertex 0.0 10.0 0.0\n    endloop\n  endfacet\nendsolid MakerForge_Demo");
-
-            const demos = [
-                {
-                    id: "demo_1",
-                    title: "Gelenkiger Weihnachts-Schneemann (Print-in-Place)",
-                    category: "Weihnachten",
-                    creatorName: "SnowPrint_Studio",
-                    creatorId: "system_demo_1",
-                    fileName: "weihnachts_schneemann_flexi.stl",
-                    fileExt: "STL",
-                    fileSize: "184 KB",
-                    fileDataBase64: sampleStlContent,
-                    imageUrl: "https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=800&q=80",
-                    material: "PLA (Weiß & Orange)",
-                    layerHeight: "0.20 mm",
-                    infill: "15% Gyroid",
-                    supports: "Nein",
-                    tutorial: "1. Drucke das Modell komplett ohne Stützstrukturen (Print-in-Place).\n2. Verwende weißes PLA für den Körper und bemale Hut und Schal nach dem Druck mit Acrylfarbe.\n3. Nach dem Abkühlen die Gelenke vorsichtig einmal bewegen, bis sie frei schwingen. Perfekt als Christbaumschmuck!",
-                    likes: 42,
-                    downloads: 128,
-                    createdAt: Date.now() - 86400000 * 2
-                },
-                {
-                    id: "demo_2",
-                    title: "Modularer Düsen- & Werkzeug-Halter für 3D-Drucker",
-                    category: "Werkzeuge",
-                    creatorName: "MechEngineer",
-                    creatorId: "system_demo_2",
-                    fileName: "nozzle_tool_organizer_v2.3mf",
-                    fileExt: "3MF",
-                    fileSize: "312 KB",
-                    fileDataBase64: sampleStlContent,
-                    imageUrl: "https://images.unsplash.com/photo-1631545806609-c2b999c8f4c6?auto=format&fit=crop&w=800&q=80",
-                    material: "PETG",
-                    layerHeight: "0.20 mm",
-                    infill: "20% Grid",
-                    supports: "Nein",
-                    tutorial: "Dieser Halter bietet Platz für 12 Düsen (0.2mm bis 0.8mm), Seitenschneider, Pinzette und Inbusschlüssel.\n\nDruck-Tipp: Mit 3 Wandlinien in PETG drucken, damit die Halterungen besonders stabil einrasten.",
-                    likes: 89,
-                    downloads: 340,
-                    createdAt: Date.now() - 86400000
-                },
-                {
-                    id: "demo_3",
-                    title: "Leuchtender Weihnachtsstern / Baumspitze (Vase Mode)",
-                    category: "Weihnachten",
-                    creatorName: "Lumina3D",
-                    creatorId: "system_demo_3",
-                    fileName: "weihnachtsstern_vasemode.stl",
-                    fileExt: "STL",
-                    fileSize: "96 KB",
-                    fileDataBase64: sampleStlContent,
-                    imageUrl: "https://images.unsplash.com/photo-1512389142860-9c449e58a543?auto=format&fit=crop&w=800&q=80",
-                    material: "PLA Transparent / Gold",
-                    layerHeight: "0.16 mm",
-                    infill: "0% (Vasenmodus)",
-                    supports: "Nein",
-                    tutorial: "Aktiviere im Slicer unbedingt den 'Spiralvasen-Modus' (Spiralize Outer Contour)!\nDurch die dünne Außenwand leuchtet eine kleine LED-Lichterkette im Inneren besonders warm und gleichmäßig durch das Filament.",
-                    likes: 64,
-                    downloads: 215,
-                    createdAt: Date.now() - 3600000 * 5
-                }
-            ];
-
-            for (const item of demos) {
-                await saveLocalIndexedDBModel(item);
+        // Hilfsfunktion: Follower-Anzahl eines Creators ermitteln
+        function getCreatorFollowersCount(model) {
+            const key = model.creatorId || model.creatorName || 'unknown';
+            if (typeof creatorFollowerMap[key] === 'number') {
+                return creatorFollowerMap[key];
             }
-            allModels = demos;
-            renderModels();
+            return model.creatorFollowers || 0;
         }
 
-        // 6. Modelle filtern, sortieren & rendern
+        // 6. Modelle filtern, sortieren & rendern (ohne voreingestellte Demo-Modelle)
         window.renderModels = function() {
             const grid = document.getElementById('models-grid');
             const emptyState = document.getElementById('empty-state');
@@ -848,15 +1003,23 @@
             const sortBy = document.getElementById('sort-select').value;
 
             document.getElementById('clear-search-btn').classList.toggle('hidden', searchTerm.length === 0);
+            updateTabCounters();
 
             let filtered = allModels.filter(m => {
                 const matchesCat = activeCategory === "Alle" || m.category === activeCategory;
+                const creatorKey = m.creatorId || m.creatorName;
+                const matchesTab =
+                    activeViewTab === 'all' ||
+                    (activeViewTab === 'liked' && userLikedIds.includes(m.id)) ||
+                    (activeViewTab === 'saved' && userSavedIds.includes(m.id)) ||
+                    (activeViewTab === 'following' && userFollowedCreators.includes(creatorKey));
+
                 const matchesSearch = !searchTerm ||
                     (m.title && m.title.toLowerCase().includes(searchTerm)) ||
                     (m.creatorName && m.creatorName.toLowerCase().includes(searchTerm)) ||
                     (m.tutorial && m.tutorial.toLowerCase().includes(searchTerm)) ||
                     (m.category && m.category.toLowerCase().includes(searchTerm));
-                return matchesCat && matchesSearch;
+                return matchesCat && matchesTab && matchesSearch;
             });
 
             filtered.sort((a, b) => {
@@ -880,21 +1043,36 @@
             filtered.forEach(model => {
                 const fallbackImg = `https://placehold.co/600x400/1e222b/10b981?text=${encodeURIComponent(model.fileExt || '3D')}+Modell`;
                 const imgSrc = model.imageUrl || fallbackImg;
+                const isLiked = userLikedIds.includes(model.id);
+                const isSaved = userSavedIds.includes(model.id);
+                const creatorKey = model.creatorId || model.creatorName;
+                const isFollowing = userFollowedCreators.includes(creatorKey);
+                const followersCount = getCreatorFollowersCount(model);
 
                 const card = document.createElement('div');
-                card.className = "group bg-darkbg-800 border border-gray-800 hover:border-brand-500/60 rounded-2xl overflow-hidden shadow-lg hover:shadow-brand-500/10 transition-all duration-300 flex flex-col cursor-pointer";
+                card.className = "group bg-darkbg-800/90 border border-gray-800/90 hover:border-brand-500/60 rounded-2xl overflow-hidden shadow-card hover:shadow-glow transition-all duration-300 flex flex-col cursor-pointer";
                 card.onclick = () => openDetailModal(model);
 
                 card.innerHTML = `
                     <div class="relative aspect-[16/10] bg-darkbg-900 overflow-hidden">
                         <img src="${imgSrc}" alt="${escapeHtml(model.title)}" onerror="this.src='${fallbackImg}'"
                              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                        <div class="absolute top-3 left-3 flex items-center gap-1.5">
+                        <div class="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
                             <span class="bg-black/75 backdrop-blur-md text-gray-100 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-white/10">
                                 ${escapeHtml(model.category || 'Allgemein')}
                             </span>
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" onclick="event.stopPropagation(); toggleLikeModel('${model.id}')" title="Liken"
+                                        class="w-7 h-7 rounded-lg bg-black/75 backdrop-blur-md border border-white/10 flex items-center justify-center text-xs hover:scale-110 transition-transform ${isLiked ? 'text-rose-500' : 'text-gray-300 hover:text-rose-400'}">
+                                    <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
+                                </button>
+                                <button type="button" onclick="event.stopPropagation(); toggleSaveModel('${model.id}')" title="Speichern"
+                                        class="w-7 h-7 rounded-lg bg-black/75 backdrop-blur-md border border-white/10 flex items-center justify-center text-xs hover:scale-110 transition-transform ${isSaved ? 'text-amber-400' : 'text-gray-300 hover:text-amber-300'}">
+                                    <i class="${isSaved ? 'fa-solid' : 'fa-regular'} fa-bookmark"></i>
+                                </button>
+                            </div>
                         </div>
-                        <span class="absolute bottom-3 right-3 bg-brand-500 text-darkbg-900 font-mono text-[11px] font-extrabold px-2 py-0.5 rounded-md shadow">
+                        <span class="absolute bottom-3 right-3 bg-brand-500 text-darkbg-950 font-mono text-[11px] font-extrabold px-2 py-0.5 rounded-md shadow">
                             .${escapeHtml(model.fileExt || 'STL')}
                         </span>
                     </div>
@@ -907,17 +1085,42 @@
                                 ${escapeHtml(model.tutorial || 'Keine Anleitung vorhanden.')}
                             </p>
                         </div>
-                        <div class="flex items-center justify-between pt-3 mt-4 border-t border-gray-800/80 text-xs text-gray-400">
-                            <div class="flex items-center gap-2 truncate">
-                                <div class="w-5 h-5 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-[10px] font-bold shrink-0">
+
+                        <!-- Creator Zeile mit Folgen-Button -->
+                        <div class="flex items-center justify-between gap-2 pt-3 mt-3.5 border-t border-gray-800/80">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <div class="w-6 h-6 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-darkbg-950 flex items-center justify-center text-[10px] font-extrabold shrink-0">
                                     ${escapeHtml((model.creatorName || 'M').substring(0, 1).toUpperCase())}
                                 </div>
-                                <span class="truncate max-w-[110px] font-medium text-gray-300">${escapeHtml(model.creatorName || 'Unbekannt')}</span>
+                                <div class="min-w-0">
+                                    <p class="truncate text-xs font-bold text-gray-200">${escapeHtml(model.creatorName || 'Unbekannt')}</p>
+                                    <p class="text-[10px] text-sky-400">${followersCount} Follower</p>
+                                </div>
                             </div>
-                            <div class="flex items-center gap-3 shrink-0">
-                                <span class="flex items-center gap-1"><i class="fa-solid fa-heart text-rose-500"></i> ${model.likes || 0}</span>
-                                <span class="flex items-center gap-1"><i class="fa-solid fa-download text-brand-400"></i> ${model.downloads || 0}</span>
-                            </div>
+                            <button type="button" onclick="event.stopPropagation(); toggleFollowCreator('${escapeHtml(creatorKey)}', '${escapeHtml(model.creatorName || 'Creator')}')"
+                                    class="shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                                        isFollowing
+                                            ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                                            : 'bg-darkbg-700 hover:bg-sky-500/20 text-gray-300 hover:text-sky-300 border border-gray-700'
+                                    }">
+                                ${isFollowing ? '<i class="fa-solid fa-check mr-1"></i>Gefolgt' : '+ Folgen'}
+                            </button>
+                        </div>
+
+                        <!-- Alle 4 Kennzahlen unten auf der Karte -->
+                        <div class="grid grid-cols-4 gap-1 pt-2.5 mt-2.5 border-t border-gray-800/60 text-[11px] text-gray-400 text-center">
+                            <span title="Likes" class="flex items-center justify-center gap-1 ${isLiked ? 'text-rose-400 font-bold' : ''}">
+                                <i class="fa-solid fa-heart text-rose-500"></i> ${model.likes || 0}
+                            </span>
+                            <span title="Gespeichert" class="flex items-center justify-center gap-1 ${isSaved ? 'text-amber-400 font-bold' : ''}">
+                                <i class="fa-solid fa-bookmark text-amber-400"></i> ${model.saves || 0}
+                            </span>
+                            <span title="Downloads" class="flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-download text-brand-400"></i> ${model.downloads || 0}
+                            </span>
+                            <span title="Creator-Follower" class="flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-users text-sky-400"></i> ${followersCount}
+                            </span>
                         </div>
                     </div>
                 `;
@@ -1025,12 +1228,14 @@
                 const tutorial = document.getElementById('model-tutorial').value.trim();
                 const urlInput = document.getElementById('model-image-url').value.trim();
                 const finalImage = selectedImageBase64 || urlInput || "";
+                const persistentId = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
 
                 const baseModelData = {
                     title: title,
                     category: category,
                     creatorName: creatorName,
                     creatorId: currentUser.uid,
+                    creatorFollowers: creatorFollowerMap[currentUser.uid] || 0,
                     fileName: selected3DFile.name,
                     fileExt: selected3DFile.ext,
                     fileSize: selected3DFile.size,
@@ -1041,57 +1246,123 @@
                     supports: document.getElementById('print-supports').value,
                     tutorial: tutorial,
                     likes: 0,
+                    saves: 0,
                     downloads: 0,
                     createdAt: Date.now()
                 };
 
-                if (isCloudMode && storageFns && firestoreFns) {
-                    const uniquePath = `artifacts/${appId}/public/models3d/${Date.now()}_${selected3DFile.name}`;
-                    const fileRef = storageFns.ref(storage, uniquePath);
-                    await storageFns.uploadBytes(fileRef, selected3DFile.rawFile);
-                    const downloadUrl = await storageFns.getDownloadURL(fileRef);
+                // Immer lokal in IndexedDB speichern, damit das Modell auf jeden Fall dauerhaft bleibt
+                await saveLocalIndexedDBModel({
+                    ...baseModelData,
+                    id: persistentId,
+                    fileBlob: selected3DFile.rawFile
+                });
 
-                    const modelsCol = firestoreFns.collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
-                    await firestoreFns.addDoc(modelsCol, {
-                        ...baseModelData,
-                        fileDownloadUrl: downloadUrl,
-                        storagePath: uniquePath
-                    });
-                } else {
-                    const localId = 'model_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-                    await saveLocalIndexedDBModel({
-                        ...baseModelData,
-                        id: localId,
-                        fileBlob: selected3DFile.rawFile
-                    });
-                    await loadLocalIndexedDBModels();
+                if (isCloudMode && firestoreFns && db) {
+                    const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
+                    if (storageFns && storage) {
+                        try {
+                            const uniquePath = `artifacts/${appId}/public/models3d/${persistentId}_${selected3DFile.name}`;
+                            const fileRef = storageFns.ref(storage, uniquePath);
+                            await storageFns.uploadBytes(fileRef, selected3DFile.rawFile);
+                            const downloadUrl = await storageFns.getDownloadURL(fileRef);
+
+                            await firestoreFns.setDoc(modelDocRef, {
+                                ...baseModelData,
+                                fileDownloadUrl: downloadUrl,
+                                storagePath: uniquePath
+                            });
+                        } catch (stUploadErr) {
+                            const b64 = await fileToBase64(selected3DFile.rawFile);
+                            await firestoreFns.setDoc(modelDocRef, {
+                                ...baseModelData,
+                                fileDataBase64: b64
+                            });
+                        }
+                    } else {
+                        const b64 = await fileToBase64(selected3DFile.rawFile);
+                        await firestoreFns.setDoc(modelDocRef, {
+                            ...baseModelData,
+                            fileDataBase64: b64
+                        });
+                    }
                 }
 
-                showToast("Dein 3D-Modell wurde erfolgreich gespeichert!", "success");
-                resetUploadForm();
+                await loadLocalIndexedDBModels();
+
+                // Formular zurücksetzen & schließen
+                document.getElementById('upload-form').reset();
+                selected3DFile = null;
+                clearSelectedImage();
+                document.getElementById('file-selected-name').textContent = "Klicke hier, um deine 3D-Druck-Datei auszuwählen";
+                document.getElementById('file-selected-meta').textContent = "Maximalgröße: 100 GB • Nur 3D-Druck-Dateien erlaubt.";
+                const dropZone = document.getElementById('file-drop-zone');
+                dropZone.classList.remove('border-brand-500', 'bg-brand-500/5', 'border-rose-500');
+                dropZone.classList.add('border-gray-600');
+
                 closeUploadModal();
+                showToast("Dein 3D-Modell wurde erfolgreich veröffentlicht!", "success");
             } catch (err) {
-                console.error("Upload Fehler:", err);
-                showToast("Fehler beim Speichern der 3D-Datei.", "error");
+                console.error("Upload-Fehler:", err);
+                showToast("Fehler beim Veröffentlichen des Modells.", "error");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalHtml;
             }
         };
 
-        function resetUploadForm() {
-            document.getElementById('upload-form').reset();
-            selected3DFile = null;
-            clearSelectedImage();
-            const dropZone = document.getElementById('file-drop-zone');
-            dropZone.classList.remove('border-brand-500', 'border-rose-500', 'bg-brand-500/5');
-            dropZone.classList.add('border-gray-600');
-            document.getElementById('file-selected-name').textContent = "Klicke hier, um deine 3D-Druck-Datei auszuwählen";
-            document.getElementById('file-selected-meta').textContent = "Maximalgröße: 100 GB • Nur 3D-Druck-Dateien erlaubt.";
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (err) => reject(err);
+                reader.readAsDataURL(file);
+            });
         }
 
-        // 9. Detail-Modal, Download, Like & Löschen
+        async function download3DModel(model) {
+            try {
+                let downloadHref = model.fileDownloadUrl || model.fileDataBase64 || null;
+                let revokeNeeded = false;
+
+                if (!downloadHref && model.fileBlob) {
+                    downloadHref = URL.createObjectURL(model.fileBlob);
+                    revokeNeeded = true;
+                }
+
+                if (!downloadHref) {
+                    showToast("Für dieses Modell ist keine herunterladbare Datei hinterlegt.", "error");
+                    return;
+                }
+
+                const link = document.createElement('a');
+                link.href = downloadHref;
+                link.download = model.fileName || `modell.${(model.fileExt || 'stl').toLowerCase()}`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+
+                if (revokeNeeded) {
+                    setTimeout(() => URL.revokeObjectURL(downloadHref), 5000);
+                }
+
+                model.downloads = (model.downloads || 0) + 1;
+                await persistModelStatsUpdate(model, { downloads: model.downloads });
+
+                if (activeDetailModelId === model.id) {
+                    document.getElementById('detail-downloads-count').textContent = model.downloads;
+                }
+                renderModels();
+                showToast(`Download gestartet: ${model.fileName}`, "success");
+            } catch (err) {
+                console.error("Download-Fehler:", err);
+                showToast("Fehler beim Herunterladen der 3D-Datei.", "error");
+            }
+        }
+
+        // 9. Detail-Modal, Download, Like, Save, Folgen & Admin-Controls
         window.openDetailModal = function(model) {
+            activeDetailModelId = model.id;
             const fallbackImg = `https://placehold.co/800x450/1e222b/10b981?text=${encodeURIComponent(model.fileExt || '3D')}+Modell`;
             document.getElementById('detail-category-badge').textContent = model.category || 'Allgemein';
             document.getElementById('detail-title').textContent = model.title;
@@ -1099,14 +1370,29 @@
             detailImg.src = model.imageUrl || fallbackImg;
             detailImg.onerror = () => { detailImg.src = fallbackImg; };
 
+            const creatorKey = model.creatorId || model.creatorName || 'unknown';
+            const followersCount = getCreatorFollowersCount(model);
+            const isLiked = userLikedIds.includes(model.id);
+            const isSaved = userSavedIds.includes(model.id);
+            const isFollowing = userFollowedCreators.includes(creatorKey);
+
             document.getElementById('detail-file-ext-badge').textContent = `.${model.fileExt || 'STL'}`;
             document.getElementById('detail-creator-avatar').textContent = (model.creatorName || 'M').substring(0, 2).toUpperCase();
             document.getElementById('detail-creator-name').textContent = model.creatorName || 'Unbekannt';
+            document.getElementById('detail-creator-followers').textContent = followersCount;
             document.getElementById('detail-date').textContent = model.createdAt ? new Date(model.createdAt).toLocaleDateString('de-DE') : '';
             document.getElementById('detail-filename').textContent = model.fileName || 'modell.stl';
             document.getElementById('detail-filesize').textContent = model.fileSize || '';
+
             document.getElementById('detail-likes-count').textContent = model.likes || 0;
+            document.getElementById('detail-saves-count').textContent = model.saves || 0;
             document.getElementById('detail-downloads-count').textContent = model.downloads || 0;
+            document.getElementById('detail-followers-stat-count').textContent = followersCount;
+
+            document.getElementById('detail-like-icon').className = `${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart text-rose-500`;
+            document.getElementById('detail-save-icon').className = `${isSaved ? 'fa-solid' : 'fa-regular'} fa-bookmark text-amber-400`;
+            document.getElementById('detail-follow-label').textContent = isFollowing ? "Gefolgt" : "Folgen";
+
             document.getElementById('detail-material').textContent = model.material || 'PLA';
             document.getElementById('detail-layer').textContent = model.layerHeight || '0.20 mm';
             document.getElementById('detail-infill').textContent = model.infill || '15%';
@@ -1114,7 +1400,21 @@
             document.getElementById('detail-tutorial').textContent = model.tutorial || 'Keine Anleitung hinterlegt.';
 
             document.getElementById('detail-download-btn').onclick = () => download3DModel(model);
-            document.getElementById('detail-like-btn').onclick = () => like3DModel(model);
+            document.getElementById('detail-like-btn').onclick = () => toggleLikeModel(model.id);
+            document.getElementById('detail-save-btn').onclick = () => toggleSaveModel(model.id);
+            document.getElementById('detail-follow-btn').onclick = () => toggleFollowCreator(creatorKey, model.creatorName || 'Creator');
+
+            // Admin-Kontrollpanel für die 4 Werte ein-/ausblenden
+            const adminPanel = document.getElementById('detail-admin-panel');
+            if (isAdmin) {
+                adminPanel.classList.remove('hidden');
+                document.getElementById('admin-edit-likes').value = model.likes || 0;
+                document.getElementById('admin-edit-saves').value = model.saves || 0;
+                document.getElementById('admin-edit-downloads').value = model.downloads || 0;
+                document.getElementById('admin-edit-followers').value = followersCount;
+            } else {
+                adminPanel.classList.add('hidden');
+            }
 
             const ownerActions = document.getElementById('detail-owner-actions');
             const deleteLabel = document.getElementById('detail-delete-label');
@@ -1133,230 +1433,14 @@
             document.getElementById('detail-modal').classList.remove('hidden');
         };
 
-        window.closeDetailModal = () => document.getElementById('detail-modal').classList.add('hidden');
+        window.closeDetailModal = () => {
+            activeDetailModelId = null;
+            document.getElementById('detail-modal').classList.add('hidden');
+        };
         window.openUploadModal = () => document.getElementById('upload-modal').classList.remove('hidden');
         window.closeUploadModal = () => document.getElementById('upload-modal').classList.add('hidden');
         window.openProfileModal = () => document.getElementById('profile-modal').classList.remove('hidden');
         window.closeProfileModal = () => document.getElementById('profile-modal').classList.add('hidden');
-        window.openAiStlModal = () => document.getElementById('ai-stl-modal').classList.remove('hidden');
-        window.closeAiStlModal = () => document.getElementById('ai-stl-modal').classList.add('hidden');
-
-        // =========================================================================
-        // 11. AI FOTO-ZU-3D-STL GENERATOR (HEIGHTMAP -> BINÄRE STL DATEI)
-        // =========================================================================
-        window.handleAiPhotoUpload = function(input) {
-            const file = input.files[0];
-            if (!file) return;
-            document.getElementById('ai-photo-label').textContent = file.name;
-
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const img = new Image();
-                img.onload = () => {
-                    aiSourceImage = img;
-                    document.getElementById('ai-empty-hint').classList.add('hidden');
-                    document.getElementById('ai-download-stl-btn').disabled = false;
-                    document.getElementById('ai-publish-stl-btn').disabled = false;
-                    updateAiPreview();
-                    showToast("Foto analysiert! 3D-Höhenrelief bereit.", "success");
-                };
-                img.src = ev.target.result;
-            };
-            reader.readAsDataURL(file);
-        };
-
-        window.updateAiPreview = function() {
-            if (!aiSourceImage) return;
-            const res = parseInt(document.getElementById('ai-res-range').value, 10);
-            const invert = document.getElementById('ai-invert-check').checked;
-            const canvas = document.getElementById('ai-preview-canvas');
-            const ctx = canvas.getContext('2d');
-
-            const aspect = aiSourceImage.height / aiSourceImage.width;
-            const w = res;
-            const h = Math.max(20, Math.round(res * aspect));
-            canvas.width = w;
-            canvas.height = h;
-
-            ctx.drawImage(aiSourceImage, 0, 0, w, h);
-            const imgData = ctx.getImageData(0, 0, w, h);
-            const data = imgData.data;
-
-            // Visuelle 3D-Schattierung auf der Vorschau berechnen
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    const idx = (y * w + x) * 4;
-                    let lum = (0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]) / 255;
-                    if (invert) lum = 1 - lum;
-                    const shade = Math.round(40 + lum * 215);
-                    data[idx] = Math.round(shade * 0.65);
-                    data[idx + 1] = Math.round(shade * 0.45);
-                    data[idx + 2] = shade;
-                }
-            }
-            ctx.putImageData(imgData, 0, 0);
-        };
-
-        function buildBinaryStlBlob() {
-            const widthMm = parseFloat(document.getElementById('ai-width-range').value);
-            const reliefMm = parseFloat(document.getElementById('ai-height-range').value);
-            const res = parseInt(document.getElementById('ai-res-range').value, 10);
-            const invert = document.getElementById('ai-invert-check').checked;
-            const baseThickness = 1.2;
-
-            const offCanvas = document.createElement('canvas');
-            const aspect = aiSourceImage.height / aiSourceImage.width;
-            const cols = res;
-            const rows = Math.max(20, Math.round(res * aspect));
-            offCanvas.width = cols;
-            offCanvas.height = rows;
-
-            const ctx = offCanvas.getContext('2d');
-            ctx.drawImage(aiSourceImage, 0, 0, cols, rows);
-            const pixels = ctx.getImageData(0, 0, cols, rows).data;
-
-            const depthMm = widthMm * aspect;
-            const dx = widthMm / (cols - 1);
-            const dy = depthMm / (rows - 1);
-
-            const heights = new Float32Array(cols * rows);
-            for (let i = 0; i < cols * rows; i++) {
-                const p = i * 4;
-                let lum = (0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2]) / 255;
-                if (invert) lum = 1 - lum;
-                heights[i] = baseThickness + lum * reliefMm;
-            }
-
-            // Anzahl Dreiecke: Oberseite + Unterseite + 4 Seitenwände
-            const topTris = (cols - 1) * (rows - 1) * 2;
-            const bottomTris = (cols - 1) * (rows - 1) * 2;
-            const sideTris = ((cols - 1) * 2 + (rows - 1) * 2) * 2;
-            const totalTris = topTris + bottomTris + sideTris;
-
-            const buffer = new ArrayBuffer(84 + totalTris * 50);
-            const view = new DataView(buffer);
-            view.setUint32(80, totalTris, true);
-
-            let offset = 84;
-            function writeTriangle(x1, y1, z1, x2, y2, z2, x3, y3, z3) {
-                const ux = x2 - x1, uy = y2 - y1, uz = z2 - z1;
-                const vx = x3 - x1, vy = y3 - y1, vz = z3 - z1;
-                let nx = uy * vz - uz * vy;
-                let ny = uz * vx - ux * vz;
-                let nz = ux * vy - uy * vx;
-                const len = Math.hypot(nx, ny, nz) || 1;
-                nx /= len; ny /= len; nz /= len;
-
-                view.setFloat32(offset, nx, true); offset += 4;
-                view.setFloat32(offset, ny, true); offset += 4;
-                view.setFloat32(offset, nz, true); offset += 4;
-
-                view.setFloat32(offset, x1, true); offset += 4;
-                view.setFloat32(offset, y1, true); offset += 4;
-                view.setFloat32(offset, z1, true); offset += 4;
-
-                view.setFloat32(offset, x2, true); offset += 4;
-                view.setFloat32(offset, y2, true); offset += 4;
-                view.setFloat32(offset, z2, true); offset += 4;
-
-                view.setFloat32(offset, x3, true); offset += 4;
-                view.setFloat32(offset, y3, true); offset += 4;
-                view.setFloat32(offset, z3, true); offset += 4;
-
-                view.setUint16(offset, 0, true); offset += 2;
-            }
-
-            for (let y = 0; y < rows - 1; y++) {
-                for (let x = 0; x < cols - 1; x++) {
-                    const x0 = x * dx, x1 = (x + 1) * dx;
-                    const y0 = (rows - 1 - y) * dy, y1 = (rows - 2 - y) * dy;
-
-                    const z00 = heights[y * cols + x];
-                    const z10 = heights[y * cols + (x + 1)];
-                    const z01 = heights[(y + 1) * cols + x];
-                    const z11 = heights[(y + 1) * cols + (x + 1)];
-
-                    // Oberseite
-                    writeTriangle(x0, y0, z00, x1, y0, z10, x1, y1, z11);
-                    writeTriangle(x0, y0, z00, x1, y1, z11, x0, y1, z01);
-
-                    // Unterseite (Z = 0)
-                    writeTriangle(x0, y0, 0, x1, y1, 0, x1, y0, 0);
-                    writeTriangle(x0, y0, 0, x0, y1, 0, x1, y1, 0);
-                }
-            }
-
-            // Seitenwände schließen für wasserdichten 3D-Druck
-            for (let x = 0; x < cols - 1; x++) {
-                const x0 = x * dx, x1 = (x + 1) * dx;
-                const yTop = (rows - 1) * dy;
-                const zT0 = heights[x], zT1 = heights[x + 1];
-                writeTriangle(x0, yTop, 0, x1, yTop, 0, x1, yTop, zT1);
-                writeTriangle(x0, yTop, 0, x1, yTop, zT1, x0, yTop, zT0);
-
-                const zB0 = heights[(rows - 1) * cols + x], zB1 = heights[(rows - 1) * cols + x + 1];
-                writeTriangle(x0, 0, 0, x1, 0, zB1, x1, 0, 0);
-                writeTriangle(x0, 0, 0, x0, 0, zB0, x1, 0, zB1);
-            }
-
-            for (let y = 0; y < rows - 1; y++) {
-                const y0 = (rows - 1 - y) * dy, y1 = (rows - 2 - y) * dy;
-                const xRight = (cols - 1) * dx;
-                const zL0 = heights[y * cols], zL1 = heights[(y + 1) * cols];
-                writeTriangle(0, y0, 0, 0, y1, zL1, 0, y1, 0);
-                writeTriangle(0, y0, 0, 0, y0, zL0, 0, y1, zL1);
-
-                const zR0 = heights[y * cols + (cols - 1)], zR1 = heights[(y + 1) * cols + (cols - 1)];
-                writeTriangle(xRight, y0, 0, xRight, y1, 0, xRight, y1, zR1);
-                writeTriangle(xRight, y0, 0, xRight, y1, zR1, xRight, y0, zR0);
-            }
-
-            return new Blob([buffer], { type: 'application/octet-stream' });
-        }
-
-        window.downloadGeneratedStl = function() {
-            if (!aiSourceImage) return;
-            const blob = buildBinaryStlBlob();
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `makerforge_ai_relief_${Date.now()}.stl`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
-            showToast("3D-STL Datei wurde generiert und heruntergeladen!", "success");
-        };
-
-        window.useGeneratedStlForUpload = function() {
-            if (!aiSourceImage) return;
-            const blob = buildBinaryStlBlob();
-            const fileName = `ai_photo_relief_${Date.now()}.stl`;
-            const stlFile = new File([blob], fileName, { type: 'application/octet-stream' });
-
-            selected3DFile = {
-                name: fileName,
-                ext: 'STL',
-                size: formatBytes(stlFile.size),
-                rawFile: stlFile
-            };
-
-            const previewDataUrl = document.getElementById('ai-preview-canvas').toDataURL('image/png');
-            selectedImageBase64 = previewDataUrl;
-
-            closeAiStlModal();
-            openUploadModal();
-
-            const dropZone = document.getElementById('file-drop-zone');
-            dropZone.classList.remove('border-rose-500', 'border-gray-600');
-            dropZone.classList.add('border-brand-500', 'bg-brand-500/5');
-            document.getElementById('file-selected-name').innerHTML = `<i class="fa-solid fa-check-circle text-brand-400 mr-1"></i> <span class="text-white font-bold">${escapeHtml(fileName)}</span>`;
-            document.getElementById('file-selected-meta').textContent = `Format: .STL • Größe: ${formatBytes(stlFile.size)} • AI Foto-Relief bereit`;
-            document.getElementById('image-preview-img').src = previewDataUrl;
-            document.getElementById('image-preview-container').classList.remove('hidden');
-            document.getElementById('model-title').value = "AI Foto-Relief 3D-Druck";
-            document.getElementById('model-tutorial').value = "Dieses 3D-Relief wurde mit dem MakerForge AI Foto-Generator erstellt.\n\nEmpfohlene Druckeinstellungen:\n- Flach auf das Druckbett legen (keine Stützstrukturen nötig).\n- Für Lithophane-Effekt mit 100% Infill und weißem PLA drucken.";
-            showToast("Generierte STL-Datei in das Upload-Formular übernommen!", "success");
-        };
 
         window.clearSearch = function() {
             document.getElementById('search-input').value = '';
@@ -1365,62 +1449,150 @@
 
         window.resetFilters = function() {
             activeCategory = "Alle";
+            setViewTab('all');
             document.getElementById('search-input').value = '';
             document.getElementById('current-view-title').firstElementChild.textContent = "Alle 3D-Druck-Modelle";
             initCategories();
             renderModels();
         };
+        window.toggleLikeModel = async function(modelId) {
+            const model = allModels.find(m => m.id === modelId);
+            if (!model) return;
+            const alreadyLiked = userLikedIds.includes(modelId);
+            const delta = alreadyLiked ? -1 : 1;
 
-        async function download3DModel(model) {
+            if (alreadyLiked) {
+                userLikedIds = userLikedIds.filter(id => id !== modelId);
+            } else {
+                userLikedIds.push(modelId);
+            }
+            persistUserInteractions();
+
+            model.likes = Math.max(0, (model.likes || 0) + delta);
+            await persistModelStatsUpdate(model, { likes: model.likes });
+
+            if (activeDetailModelId === model.id) openDetailModal(model);
+            renderModels();
+            showToast(alreadyLiked ? "Like entfernt." : "Modell gelikt!", alreadyLiked ? "info" : "success");
+        };
+
+        window.toggleSaveModel = async function(modelId) {
+            const model = allModels.find(m => m.id === modelId);
+            if (!model) return;
+            const alreadySaved = userSavedIds.includes(modelId);
+            const delta = alreadySaved ? -1 : 1;
+
+            if (alreadySaved) {
+                userSavedIds = userSavedIds.filter(id => id !== modelId);
+            } else {
+                userSavedIds.push(modelId);
+            }
+            persistUserInteractions();
+
+            model.saves = Math.max(0, (model.saves || 0) + delta);
+            await persistModelStatsUpdate(model, { saves: model.saves });
+
+            if (activeDetailModelId === model.id) openDetailModal(model);
+            renderModels();
+            showToast(alreadySaved ? "Aus Gespeicherten entfernt." : "Modell in deiner Liste gespeichert!", alreadySaved ? "info" : "success");
+        };
+
+        window.toggleFollowCreator = async function(creatorKey, creatorDisplayName) {
+            if (!creatorKey) return;
+            const alreadyFollowing = userFollowedCreators.includes(creatorKey);
+            const delta = alreadyFollowing ? -1 : 1;
+
+            if (alreadyFollowing) {
+                userFollowedCreators = userFollowedCreators.filter(k => k !== creatorKey);
+            } else {
+                userFollowedCreators.push(creatorKey);
+            }
+
+            const sampleModel = allModels.find(m => (m.creatorId || m.creatorName) === creatorKey);
+            const currentFollowers = sampleModel ? getCreatorFollowersCount(sampleModel) : (creatorFollowerMap[creatorKey] || 0);
+            const updatedFollowers = Math.max(0, currentFollowers + delta);
+            creatorFollowerMap[creatorKey] = updatedFollowers;
+            persistUserInteractions();
+
+            // Follower-Zahl bei allen Modellen dieses Creators synchronisieren
+            for (const m of allModels) {
+                if ((m.creatorId || m.creatorName) === creatorKey) {
+                    m.creatorFollowers = updatedFollowers;
+                    await persistModelStatsUpdate(m, { creatorFollowers: updatedFollowers });
+                }
+            }
+
+            if (activeDetailModelId) {
+                const currentModel = allModels.find(m => m.id === activeDetailModelId);
+                if (currentModel) openDetailModal(currentModel);
+            }
+            renderModels();
+            showToast(alreadyFollowing ? `Du folgst ${creatorDisplayName} nicht mehr.` : `Du folgst jetzt ${creatorDisplayName}!`, "success");
+        };
+
+        window.adminBoostAllStats = function() {
+            if (!isAdmin) return;
+            const l = document.getElementById('admin-edit-likes');
+            const s = document.getElementById('admin-edit-saves');
+            const d = document.getElementById('admin-edit-downloads');
+            const f = document.getElementById('admin-edit-followers');
+            l.value = (parseInt(l.value, 10) || 0) + 100;
+            s.value = (parseInt(s.value, 10) || 0) + 100;
+            d.value = (parseInt(d.value, 10) || 0) + 100;
+            f.value = (parseInt(f.value, 10) || 0) + 100;
+            saveAdminStatsChanges();
+        };
+
+        window.saveAdminStatsChanges = async function() {
+            if (!isAdmin || !activeDetailModelId) return;
+            const model = allModels.find(m => m.id === activeDetailModelId);
+            if (!model) return;
+
+            const newLikes = Math.max(0, parseInt(document.getElementById('admin-edit-likes').value, 10) || 0);
+            const newSaves = Math.max(0, parseInt(document.getElementById('admin-edit-saves').value, 10) || 0);
+            const newDownloads = Math.max(0, parseInt(document.getElementById('admin-edit-downloads').value, 10) || 0);
+            const newFollowers = Math.max(0, parseInt(document.getElementById('admin-edit-followers').value, 10) || 0);
+
+            const creatorKey = model.creatorId || model.creatorName || 'unknown';
+            creatorFollowerMap[creatorKey] = newFollowers;
+            persistUserInteractions();
+
+            model.likes = newLikes;
+            model.saves = newSaves;
+            model.downloads = newDownloads;
+            model.creatorFollowers = newFollowers;
+
+            await persistModelStatsUpdate(model, {
+                likes: newLikes,
+                saves: newSaves,
+                downloads: newDownloads,
+                creatorFollowers: newFollowers
+            });
+
+            for (const m of allModels) {
+                if (m.id !== model.id && (m.creatorId || m.creatorName) === creatorKey) {
+                    m.creatorFollowers = newFollowers;
+                    await persistModelStatsUpdate(m, { creatorFollowers: newFollowers });
+                }
+            }
+
+            openDetailModal(model);
+            renderModels();
+            showToast("Admin-Änderungen für alle 4 Werte gespeichert!", "success");
+        };
+
+        async function persistModelStatsUpdate(model, fields) {
             try {
-                const fileName = model.fileName || `makerforge_model.${(model.fileExt || 'stl').toLowerCase()}`;
+                // 1. Immer dauerhaft lokal in IndexedDB sichern
+                await saveLocalIndexedDBModel(model);
 
-                if (model.fileDownloadUrl) {
-                    const link = document.createElement('a');
-                    link.href = model.fileDownloadUrl;
-                    link.target = '_blank';
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                } else if (model.fileBlob) {
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(model.fileBlob);
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(link.href);
-                } else {
-                    const byteCharacters = atob(model.fileDataBase64 || "");
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }
-                    const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/octet-stream' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(link.href);
-                }
-
-                showToast(`Download gestartet: ${fileName}`, "success");
-
-                if (isCloudMode && firestoreFns) {
+                // 2. Zusätzlich in der Cloud-Datenbank aktualisieren (für alle anderen Besucher)
+                if (isCloudMode && firestoreFns && db) {
                     const modelRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
-                    await firestoreFns.updateDoc(modelRef, { downloads: firestoreFns.increment(1) });
-                } else {
-                    model.downloads = (model.downloads || 0) + 1;
-                    await saveLocalIndexedDBModel(model);
-                    renderModels();
+                    await firestoreFns.setDoc(modelRef, fields, { merge: true });
                 }
-                document.getElementById('detail-downloads-count').textContent = model.downloads;
             } catch (err) {
-                console.error("Download Fehler:", err);
-                showToast("Fehler beim Herunterladen der 3D-Datei.", "error");
+                console.error("Fehler beim Aktualisieren der Modell-Statistiken:", err);
             }
         }
 
@@ -1444,17 +1616,16 @@
         async function deleteOwnModel(modelId) {
             try {
                 const targetModel = allModels.find(m => m.id === modelId);
-                if (isCloudMode && firestoreFns) {
-                    if (targetModel && targetModel.storagePath && storageFns) {
+                await deleteLocalIndexedDBModel(modelId);
+                if (isCloudMode && firestoreFns && db) {
+                    if (targetModel && targetModel.storagePath && storageFns && storage) {
                         try {
                             await storageFns.deleteObject(storageFns.ref(storage, targetModel.storagePath));
                         } catch (e) {}
                     }
                     await firestoreFns.deleteDoc(firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', modelId));
-                } else {
-                    await deleteLocalIndexedDBModel(modelId);
-                    await loadLocalIndexedDBModels();
                 }
+                await loadLocalIndexedDBModels();
                 closeDetailModal();
                 showToast("Dein Modell wurde gelöscht.", "info");
             } catch (err) {
