@@ -3,212 +3,137 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Build 3D World</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BUILD 3D WORLD</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+:root {
+  --bg:#090e19;
+  --panel:#111a2b;
+  --panel2:#17243a;
+  --blue:#398cff;
+  --text:#f5f8ff;
+  --muted:#91a2bd;
+  --border:#263651;
 }
-
+* {box-sizing:border-box;margin:0;padding:0}
 body {
-    background: #10131c;
-    color: white;
-    font-family: Arial, sans-serif;
+  background:var(--bg);color:var(--text);
+  font-family:Inter,Arial,sans-serif;
 }
-
+button,input,textarea {font:inherit}
+button {cursor:pointer}
 header {
-    height: 75px;
-    background: #191e2b;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 6%;
-    border-bottom: 1px solid #30394a;
+  height:76px;background:#0d1524;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 5%;position:sticky;top:0;z-index:10;
 }
-
-.logo {
-    font-size: 23px;
-    font-weight: bold;
-    color: #43a5ff;
+.logo {font-size:21px;font-weight:900;letter-spacing:1px}
+.logo span {color:var(--blue)}
+nav {display:flex;gap:25px}
+nav a {color:#c7d2e5;text-decoration:none;font-size:14px}
+nav a:hover {color:var(--blue)}
+.btn {
+  background:var(--blue);color:white;border:0;
+  padding:12px 18px;border-radius:9px;font-weight:bold;
 }
-
-nav {
-    display: flex;
-    gap: 25px;
-}
-
-nav a {
-    color: white;
-    text-decoration: none;
-    cursor: pointer;
-}
-
-nav a:hover {
-    color: #43a5ff;
-}
-
-button {
-    background: #258cff;
-    border: none;
-    padding: 12px 20px;
-    color: white;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-button:hover {
-    background: #0873e8;
-}
-
+.btn:hover {background:#1674ed}
+.secondary {background:var(--panel2);border:1px solid var(--border)}
 .hero {
-    padding: 75px 6%;
-    background: linear-gradient(120deg, #172b4a, #10131c);
+  padding:85px 7%;
+  background:radial-gradient(ellipse at 80% 20%,#174477 0%,#101d34 35%,#090e19 75%);
 }
-
-.hero h1 {
-    font-size: 45px;
-    margin-bottom: 15px;
-}
-
-.hero p {
-    color: #bdc9db;
-    font-size: 17px;
-    margin-bottom: 25px;
-}
-
+.hero h1 {font-size:clamp(35px,6vw,65px);max-width:750px;line-height:1.08}
+.hero h1 span {color:#58a4ff}
+.hero p {color:#a9bad2;margin:20px 0 28px;max-width:600px;line-height:1.7}
 .search {
-    margin-top: 25px;
-    padding: 15px;
-    width: 100%;
-    max-width: 500px;
-    background: #202a3b;
-    border: 1px solid #45536b;
-    border-radius: 8px;
-    color: white;
-    font-size: 16px;
+  margin-top:28px;width:min(560px,100%);padding:16px;
+  border-radius:10px;background:#111d30;color:white;
+  border:1px solid #344a6b;outline:none;
 }
-
-.container {
-    padding: 40px 6%;
+.search:focus,input:focus,textarea:focus {border-color:var(--blue)}
+.stats {display:flex;gap:35px;margin-top:35px;color:var(--muted)}
+.stats strong {display:block;color:white;font-size:22px}
+.section {padding:55px 7%}
+.section-head {
+  display:flex;justify-content:space-between;
+  align-items:center;gap:15px;margin-bottom:25px;flex-wrap:wrap;
 }
-
-.section-title {
-    font-size: 26px;
-    margin-bottom: 25px;
+.section h2 {font-size:27px}
+.filters {display:flex;gap:10px;flex-wrap:wrap}
+.filter {
+  background:var(--panel);border:1px solid var(--border);
+  color:#c6d4e8;padding:9px 15px;border-radius:20px;
 }
-
-.models {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 22px;
+.filter.active {background:#17477f;border-color:#398cff;color:white}
+.grid {
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:22px;
 }
-
 .card {
-    background: #1b2230;
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid #30394a;
-    transition: 0.2s;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:15px;overflow:hidden;transition:.2s;
 }
-
-.card:hover {
-    transform: translateY(-5px);
+.card:hover {transform:translateY(-5px);border-color:#478fe8}
+.card img {width:100%;height:205px;object-fit:cover;background:#1a2940}
+.card-body {padding:16px}
+.card h3 {font-size:17px;margin-bottom:8px}
+.card p {color:var(--muted);font-size:13px;line-height:1.5}
+.card-foot {
+  display:flex;justify-content:space-between;
+  align-items:center;margin-top:17px;gap:8px;
 }
-
-.card img {
-    width: 100%;
-    height: 190px;
-    object-fit: cover;
-    background: #293448;
+.tag {font-size:11px;color:#8ec1ff;background:#1a3457;padding:6px 9px;border-radius:6px}
+.author {font-size:12px;color:var(--muted)}
+.download {text-decoration:none;color:#78b7ff;font-size:13px;font-weight:bold}
+.empty {
+  grid-column:1/-1;text-align:center;padding:65px 20px;
+  background:var(--panel);border-radius:15px;color:var(--muted);
 }
-
-.card-content {
-    padding: 16px;
+.upload-wrap {padding:55px 7%;background:#0c1422}
+.upload-box {
+  max-width:750px;margin:auto;background:var(--panel);
+  padding:30px;border:1px solid var(--border);border-radius:18px;
 }
-
-.card h3 {
-    margin-bottom: 9px;
+.upload-box h2 {margin-bottom:10px}
+.upload-box>p {color:var(--muted);margin-bottom:25px}
+label {display:block;font-size:13px;margin:17px 0 8px;color:#c9d7ec}
+input,textarea {
+  width:100%;padding:14px;border-radius:9px;
+  background:#0b1423;color:white;border:1px solid var(--border);
 }
-
-.card p {
-    color: #aebbd0;
-    font-size: 13px;
-    margin-bottom: 12px;
+textarea {height:110px;resize:vertical}
+input[type=file] {font-size:13px}
+.hint {font-size:12px;color:var(--muted);margin-top:7px}
+#status {margin-top:15px;color:#79e2a6}
+.auth {
+  display:flex;gap:10px;align-items:center;
 }
-
-.card button {
-    margin-top: 12px;
-    width: 100%;
-}
-
-.upload-section {
-    background: #1b2230;
-    margin: 40px 6%;
-    padding: 30px;
-    border-radius: 14px;
-    border: 1px solid #30394a;
-}
-
-.upload-section h2 {
-    margin-bottom: 20px;
-}
-
-input, textarea {
-    display: block;
-    width: 100%;
-    padding: 13px;
-    margin: 12px 0;
-    background: #101722;
-    border: 1px solid #46536a;
-    border-radius: 7px;
-    color: white;
-}
-
-input[type="file"] {
-    cursor: pointer;
-}
-
-textarea {
-    min-height: 100px;
-    resize: vertical;
-}
-
+#userLabel {font-size:12px;color:#a9bad2}
 footer {
-    text-align: center;
-    padding: 30px;
-    color: #8996aa;
-    border-top: 1px solid #30394a;
+  text-align:center;padding:35px;color:var(--muted);
+  border-top:1px solid var(--border);font-size:13px;
 }
-
-.hidden {
-    display: none;
+.modal {
+  display:none;position:fixed;inset:0;background:#000b;
+  z-index:20;align-items:center;justify-content:center;padding:20px;
 }
-
-#message {
-    margin-top: 15px;
-    color: #65d99a;
+.modal-content {
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:15px;padding:25px;width:min(420px,100%);
 }
-
-@media(max-width: 650px) {
-    header {
-        height: auto;
-        padding: 20px;
-        flex-wrap: wrap;
-        gap: 15px;
-    }
-
-    nav {
-        gap: 14px;
-        flex-wrap: wrap;
-    }
-
-    .hero h1 {
-        font-size: 32px;
-    }
+.modal-content h2 {margin-bottom:15px}
+.modal-content input {margin:9px 0}
+.modal-content button {width:100%;margin-top:10px}
+@media(max-width:700px) {
+  header {height:auto;padding:17px 5%;flex-wrap:wrap;gap:15px}
+  nav {order:3;width:100%;justify-content:space-between}
+  .hero {padding:65px 6%}
+  .section {padding:40px 5%}
+  .upload-wrap {padding:35px 5%}
+  .stats {gap:20px}
 }
 </style>
 </head>
@@ -216,222 +141,338 @@ footer {
 <body>
 
 <header>
-    <div class="logo">🌍 BUILD 3D WORLD</div>
-
-    <nav>
-        <a href="#home">Startseite</a>
-        <a href="#models">Modelle</a>
-        <a href="#upload">Hochladen</a>
-    </nav>
+  <div class="logo">🌍 BUILD <span>3D WORLD</span></div>
+  <nav>
+    <a href="#home">Startseite</a>
+    <a href="#models">Modelle</a>
+    <a href="#upload">Hochladen</a>
+  </nav>
+  <div class="auth">
+    <span id="userLabel"></span>
+    <button class="btn" id="authButton" onclick="openAuth()">Anmelden</button>
+  </div>
 </header>
 
 <section class="hero" id="home">
-    <h1>Entdecke die Welt des 3D-Drucks.</h1>
-
-    <p>
-        Entdecke coole 3D-Modelle, teile deine eigenen Kreationen
-        und werde Teil unserer Community!
-    </p>
-
-    <button onclick="location.href='#models'">
-        Modelle entdecken
-    </button>
-
-    <input
-        class="search"
-        id="search"
-        placeholder="🔍 Suche nach 3D-Modellen..."
-        oninput="searchModels()"
-    >
+  <h1>Deine Welt.<br>Deine Ideen.<br><span>Dein 3D-Druck.</span></h1>
+  <p>
+    Entdecke kreative 3D-Modelle aus der ganzen Welt.
+    Teile deine eigenen Designs und werde Teil einer
+    Community, die Ideen Wirklichkeit werden lässt.
+  </p>
+  <button class="btn" onclick="location.href='#models'">Modelle entdecken →</button>
+  <input class="search" id="search" placeholder="🔍 3D-Modelle suchen..." oninput="renderModels()">
+  <div class="stats">
+    <div><strong id="modelCount">0</strong>Modelle</div>
+    <div><strong>∞</strong>Kreativität</div>
+    <div><strong>24/7</strong>Community</div>
+  </div>
 </section>
 
-<section class="container" id="models">
-
-    <h2 class="section-title">🔥 Beliebte 3D-Modelle</h2>
-
-    <div class="models" id="modelList">
-
-        <div class="card">
-            <img src="https://images.unsplash.com/photo-1633412802994-5c058f151b66?w=600" alt="3D-Druck">
-            <div class="card-content">
-                <h3>3D Modell Beispiel</h3>
-                <p>Ein Beispiel für ein 3D-Druck-Projekt.</p>
-                <button onclick="alert('Beispielmodell – noch keine Datei vorhanden.')">
-                    Modell ansehen
-                </button>
-            </div>
-        </div>
-
-        <div class="card">
-            <img src="https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?w=600" alt="3D Design">
-            <div class="card-content">
-                <h3>Modernes Design</h3>
-                <p>Ein weiteres Beispiel für deine Galerie.</p>
-                <button onclick="alert('Beispielmodell – noch keine Datei vorhanden.')">
-                    Modell ansehen
-                </button>
-            </div>
-        </div>
-
+<section class="section" id="models">
+  <div class="section-head">
+    <h2>🔥 Entdecke Modelle</h2>
+    <div class="filters">
+      <button class="filter active" onclick="setFilter('Alle',this)">Alle</button>
+      <button class="filter" onclick="setFilter('Figuren',this)">Figuren</button>
+      <button class="filter" onclick="setFilter('Technik',this)">Technik</button>
+      <button class="filter" onclick="setFilter('Dekoration',this)">Dekoration</button>
+      <button class="filter" onclick="setFilter('Praktisch',this)">Praktisch</button>
     </div>
+  </div>
+  <div class="grid" id="modelGrid">
+    <div class="empty">Lade Modelle ...</div>
+  </div>
 </section>
 
-<section class="upload-section" id="upload">
-
-    <h2>📤 Eigenes 3D-Modell hochladen</h2>
-
-    <p style="color:#aebbd0">
-        Teile deine Kreationen mit der Build 3D World Community!
-    </p>
+<section class="upload-wrap" id="upload">
+  <div class="upload-box">
+    <h2>📦 Teile dein 3D-Modell</h2>
+    <p>Veröffentliche deine Kreationen für die gesamte Community.</p>
 
     <form id="uploadForm">
+      <label>Modellname *</label>
+      <input id="title" required maxlength="100" placeholder="z.B. Flexibler Drache">
 
-        <input
-            type="text"
-            id="modelName"
-            placeholder="Name deines Modells"
-            required
-        >
+      <label>Beschreibung *</label>
+      <textarea id="description" required maxlength="3000"
+        placeholder="Beschreibe dein Modell ..."></textarea>
 
-        <textarea
-            id="description"
-            placeholder="Beschreibung deines Modells..."
-            required
-        ></textarea>
+      <label>Kategorie *</label>
+      <select id="category" required>
+        <option value="Figuren">Figuren</option>
+        <option value="Technik">Technik</option>
+        <option value="Dekoration">Dekoration</option>
+        <option value="Praktisch">Praktische Modelle</option>
+        <option value="Sonstiges">Sonstiges</option>
+      </select>
 
-        <label>📷 Modellbild (Pflicht)</label>
-        <input
-            type="file"
-            id="modelImage"
-            accept="image/jpeg,image/png,image/webp"
-            required
-        >
+      <label>Vorschaubild (Pflicht) *</label>
+      <input id="image" type="file" required accept="image/jpeg,image/png,image/webp">
 
-        <label>📦 3D-Druck-Datei (Pflicht)</label>
-        <input
-            type="file"
-            id="modelFile"
-            accept=".stl,.3mf,.obj,.gcode,.step,.stp"
-            required
-        >
+      <label>3D-Druck-Datei (Pflicht) *</label>
+      <input id="modelFile" type="file" required
+        accept=".stl,.3mf,.obj,.gcode,.step,.stp">
 
-        <button type="submit">Modell veröffentlichen</button>
+      <p class="hint">Erlaubt: STL, 3MF, OBJ, GCODE, STEP und STP. Keine TXT- oder ZIP-Dateien.</p>
 
-        <p id="message"></p>
-
+      <br>
+      <button class="btn" type="submit" id="uploadButton">
+        🚀 Modell veröffentlichen
+      </button>
+      <p id="status"></p>
     </form>
+  </div>
 </section>
 
 <footer>
-    © 2026 BUILD 3D WORLD – Deine 3D-Druck-Community 🌍
+  <div class="logo">BUILD <span>3D WORLD</span></div>
+  <p style="margin-top:12px">Die Community für kreative 3D-Drucker.</p>
+  <p style="margin-top:10px">© 2026 BUILD 3D WORLD</p>
 </footer>
 
+<div class="modal" id="authModal">
+  <div class="modal-content">
+    <h2>Dein Konto</h2>
+    <input id="email" type="email" placeholder="E-Mail-Adresse">
+    <input id="password" type="password" placeholder="Passwort">
+    <button class="btn" onclick="signIn()">Anmelden</button>
+    <button class="btn secondary" onclick="signUp()">Konto erstellen</button>
+    <button class="btn secondary" onclick="closeAuth()">Schließen</button>
+    <p id="authStatus" style="margin-top:12px;color:#91a2bd"></p>
+  </div>
+</div>
+
 <script>
+const SUPABASE_URL = "DEINE_SUPABASE_URL";
+const SUPABASE_KEY = "DEIN_SUPABASE_ANON_KEY";
 
-const allowedExtensions = [
-    "stl",
-    "3mf",
-    "obj",
-    "gcode",
-    "step",
-    "stp"
-];
+const configured =
+  SUPABASE_URL.startsWith("https://") &&
+  !SUPABASE_URL.includes("DEINE_") &&
+  !SUPABASE_KEY.includes("DEIN_");
 
-document.getElementById("uploadForm").addEventListener(
-    "submit",
-    function(event) {
+const db = configured
+  ? window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY)
+  : null;
 
-        event.preventDefault();
+let models = [];
+let currentFilter = "Alle";
+let currentUser = null;
 
-        const name = document.getElementById("modelName").value;
-        const description = document.getElementById("description").value;
-        const image = document.getElementById("modelImage").files[0];
-        const file = document.getElementById("modelFile").files[0];
-        const message = document.getElementById("message");
+const allowed = ["stl","3mf","obj","gcode","step","stp"];
 
-        if (!image || !file) {
-            alert("Bitte füge ein Modellbild und eine 3D-Datei hinzu!");
-            return;
-        }
-
-        const extension = file.name.split(".").pop().toLowerCase();
-
-        if (!allowedExtensions.includes(extension)) {
-            alert("Dieses Dateiformat ist nicht erlaubt!");
-            return;
-        }
-
-        if (!image.type.startsWith("image/")) {
-            alert("Bitte lade ein gültiges Bild hoch!");
-            return;
-        }
-
-        const imageURL = URL.createObjectURL(image);
-        const fileURL = URL.createObjectURL(file);
-
-        const card = document.createElement("div");
-        card.className = "card";
-
-        const img = document.createElement("img");
-        img.src = imageURL;
-        img.alt = name;
-
-        const content = document.createElement("div");
-        content.className = "card-content";
-
-        const title = document.createElement("h3");
-        title.textContent = name;
-
-        const desc = document.createElement("p");
-        desc.textContent = description;
-
-        const download = document.createElement("a");
-        download.href = fileURL;
-        download.download = file.name;
-        download.style.display = "block";
-        download.style.textDecoration = "none";
-
-        const btn = document.createElement("button");
-        btn.textContent = "⬇ 3D-Datei herunterladen";
-        btn.style.width = "100%";
-
-        download.appendChild(btn);
-
-        content.append(title, desc, download);
-        card.append(img, content);
-
-        document.getElementById("modelList").prepend(card);
-
-        document.getElementById("uploadForm").reset();
-
-        message.textContent = "Dein Modell wurde veröffentlicht! 🎉";
-
-        document.getElementById("models").scrollIntoView({
-            behavior: "smooth"
-        });
-    }
-);
-
-function searchModels() {
-
-    const query = document
-        .getElementById("search")
-        .value.toLowerCase();
-
-    const cards = document.querySelectorAll(".card");
-
-    cards.forEach(card => {
-
-        const text = card.textContent.toLowerCase();
-
-        card.style.display = text.includes(query)
-            ? ""
-            : "none";
-
-    });
+function openAuth() {
+  document.getElementById("authModal").style.display="flex";
+}
+function closeAuth() {
+  document.getElementById("authModal").style.display="none";
+}
+function setFilter(value,button) {
+  currentFilter=value;
+  document.querySelectorAll(".filter").forEach(b=>b.classList.remove("active"));
+  button.classList.add("active");
+  renderModels();
 }
 
-</script>
+async function refreshUser() {
+  if (!db) return;
+  const {data} = await db.auth.getUser();
+  currentUser=data.user;
+  document.getElementById("userLabel").textContent =
+    currentUser ? currentUser.email : "";
+  document.getElementById("authButton").textContent =
+    currentUser ? "Abmelden" : "Anmelden";
+  document.getElementById("authButton").onclick =
+    currentUser ? signOut : openAuth;
+}
 
+async function signUp() {
+  if (!db) return;
+  const email=document.getElementById("email").value;
+  const password=document.getElementById("password").value;
+  const {error}=await db.auth.signUp({email,password});
+  document.getElementById("authStatus").textContent =
+    error ? error.message : "Bitte bestätige deine E-Mail-Adresse.";
+}
+
+async function signIn() {
+  if (!db) return;
+  const email=document.getElementById("email").value;
+  const password=document.getElementById("password").value;
+  const {error}=await db.auth.signInWithPassword({email,password});
+  document.getElementById("authStatus").textContent =
+    error ? error.message : "Erfolgreich angemeldet!";
+  if (!error) {
+    await refreshUser();
+    closeAuth();
+  }
+}
+
+async function signOut() {
+  if (!db) return;
+  await db.auth.signOut();
+  await refreshUser();
+}
+
+async function loadModels() {
+  if (!db) {
+    document.getElementById("modelGrid").innerHTML =
+      '<div class="empty">Die Cloud-Datenbank ist noch nicht eingerichtet.<br>Bitte trage zuerst deine Supabase-Zugangsdaten ein.</div>';
+    return;
+  }
+
+  const {data,error}=await db
+    .from("models")
+    .select("*")
+    .order("created_at",{ascending:false});
+
+  if (error) {
+    document.getElementById("modelGrid").innerHTML =
+      '<div class="empty">Modelle konnten nicht geladen werden: '+escapeHTML(error.message)+'</div>';
+    return;
+  }
+  models=data || [];
+  renderModels();
+}
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function renderModels() {
+  const query=document.getElementById("search").value.toLowerCase();
+  const filtered=models.filter(m=>
+    (currentFilter==="Alle" || m.category===currentFilter) &&
+    (m.title+" "+m.description).toLowerCase().includes(query)
+  );
+
+  document.getElementById("modelCount").textContent=models.length;
+
+  const grid=document.getElementById("modelGrid");
+  if (!filtered.length) {
+    grid.innerHTML='<div class="empty">Noch keine passenden Modelle gefunden. Sei der Erste und lade eins hoch! 🚀</div>';
+    return;
+  }
+
+  grid.innerHTML=filtered.map(m=>`
+    <article class="card">
+      <img src="${escapeHTML(m.image_url)}" alt="${escapeHTML(m.title)}" loading="lazy">
+      <div class="card-body">
+        <h3>${escapeHTML(m.title)}</h3>
+        <p>${escapeHTML(m.description)}</p>
+        <div class="card-foot">
+          <span class="tag">${escapeHTML(m.category)}</span>
+          <a class="download" href="${escapeHTML(m.file_url)}" target="_blank" rel="noopener">⬇ Download</a>
+        </div>
+        <p class="author" style="margin-top:13px">Von ${escapeHTML(m.author || "Community")}</p>
+      </div>
+    </article>
+  `).join("");
+}
+
+document.getElementById("uploadForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+
+  const status=document.getElementById("status");
+  const button=document.getElementById("uploadButton");
+  const image=document.getElementById("image").files[0];
+  const file=document.getElementById("modelFile").files[0];
+
+  if (!db) {
+    status.textContent="Bitte zuerst die Supabase-Datenbank einrichten.";
+    return;
+  }
+
+  if (!currentUser) {
+    status.textContent="Bitte melde dich zuerst an.";
+    openAuth();
+    return;
+  }
+
+  if (!image || !file) {
+    status.textContent="Bild und 3D-Datei sind Pflicht!";
+    return;
+  }
+
+  const extension=file.name.split(".").pop().toLowerCase();
+
+  if (!allowed.includes(extension)) {
+    status.textContent="Dieses Dateiformat ist nicht erlaubt!";
+    return;
+  }
+
+  if (!["image/jpeg","image/png","image/webp"].includes(image.type)) {
+    status.textContent="Bitte verwende JPG, PNG oder WEBP als Bild.";
+    return;
+  }
+
+  if (image.size>8*1024*1024 || file.size>100*1024*1024) {
+    status.textContent="Bild maximal 8 MB, 3D-Datei maximal 100 MB.";
+    return;
+  }
+
+  button.disabled=true;
+  button.textContent="Wird hochgeladen ...";
+  status.textContent="Bitte warten ...";
+
+  try {
+    const folder=currentUser.id;
+    const id=crypto.randomUUID();
+    const imagePath=folder+"/"+id+"."+image.name.split(".").pop().toLowerCase();
+    const filePath=folder+"/"+id+"."+extension;
+
+    const imageUpload=await db.storage.from("models").upload(
+      imagePath,image,{contentType:image.type,upsert:false}
+    );
+    if (imageUpload.error) throw imageUpload.error;
+
+    const fileUpload=await db.storage.from("models").upload(
+      filePath,file,{upsert:false}
+    );
+    if (fileUpload.error) throw fileUpload.error;
+
+    const imageURL=db.storage.from("models").getPublicUrl(imagePath).data.publicUrl;
+    const fileURL=db.storage.from("models").getPublicUrl(filePath).data.publicUrl;
+
+    const {error}=await db.from("models").insert({
+      user_id:currentUser.id,
+      title:document.getElementById("title").value,
+      description:document.getElementById("description").value,
+      category:document.getElementById("category").value,
+      image_url:imageURL,
+      file_url:fileURL,
+      image_path:imagePath,
+      file_path:filePath,
+      author:currentUser.email
+    });
+
+    if (error) throw error;
+
+    status.textContent="🎉 Dein Modell ist jetzt für alle sichtbar!";
+    e.target.reset();
+    await loadModels();
+    document.getElementById("models").scrollIntoView({behavior:"smooth"});
+
+  } catch(error) {
+    status.textContent="Fehler: "+error.message;
+  } finally {
+    button.disabled=false;
+    button.textContent="🚀 Modell veröffentlichen";
+  }
+});
+
+if (db) {
+  db.auth.onAuthStateChange(()=> {
+    refreshUser();
+  });
+  refreshUser();
+  loadModels();
+} else {
+  loadModels();
+}
+</script>
 </body>
 </html>
