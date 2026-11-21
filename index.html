@@ -97,20 +97,20 @@
 
                 <!-- Aktionen: Creator Name & Upload -->
                 <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-                    <!-- Creator Profil Button -->
-                    <button onclick="openProfileModal()" class="flex items-center gap-2 bg-darkbg-700 hover:bg-darkbg-600 border border-gray-700 px-3 py-2 rounded-xl text-sm font-medium transition-all" title="Creator-Namen ändern">
-                        <div class="w-6 h-6 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-xs font-bold" id="header-avatar">
-                            <i class="fa-solid fa-user"></i>
-                        </div>
-                        <span id="header-username" class="hidden md:inline max-w-[120px] truncate text-gray-200">Lade...</span>
-                        <i class="fa-solid fa-pen text-[10px] text-gray-400"></i>
+                    <!-- Admin Status Badge (sichtbar wenn Admin aktiv) -->
+                    <span id="admin-header-badge" class="hidden items-center gap-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2.5 py-1.5 rounded-xl text-xs font-bold">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span class="hidden lg:inline">Admin</span>
+                    </span>
+
+                    <!-- AI Foto zu 3D STL Generator Button -->
+                    <button onclick="openAiStlModal()" class="flex items-center gap-2 bg-purple-600/90 hover:bg-purple-500 text-white font-semibold px-3 py-2 rounded-xl text-sm shadow-lg shadow-purple-500/20 transition-all active:scale-95" title="Foto zu 3D-STL umwandeln">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span class="hidden md:inline">Foto → 3D STL</span>
                     </button>
 
-                    <!-- Upload Button -->
-                    <button onclick="openUploadModal()" class="flex items-center gap-2 bg-brand-500 hover:bg-brand-600 text-darkbg-900 font-bold px-4 py-2 rounded-xl text-sm shadow-lg shadow-brand-500/25 transition-all active:scale-95">
-                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <span class="hidden sm:inline">Modell hochladen</span>
-                        <span class="sm:hidden">Upload</span>
+                    <!-- Creator Profil Button -->
+                    <button onclick="openProfileModal()" class="flex items-center gap-2 bg-darkbg-700 hover:bg-darkbg-600 border border-gray-700 px-3 py-2 rounded-xl text-sm font-medium transition-all" title="Creator-Namen & Admin-Code">
                     </button>
                 </div>
             </div>
@@ -217,6 +217,25 @@
                 <div class="bg-darkbg-900/80 p-3 rounded-xl border border-gray-800 text-xs text-gray-400">
                     <span class="block text-gray-500 mb-0.5">Deine persönliche Creator-ID:</span>
                     <code id="display-user-id" class="text-brand-400 break-all select-all">Wird geladen...</code>
+                </div>
+
+                <!-- Admin-Code Bereich -->
+                <div class="pt-3 border-t border-gray-700/80">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-amber-400 mb-1.5 flex items-center gap-1.5">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Admin-Freischaltcode (Optional)</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="password" id="admin-code-input" placeholder="Geheimen Admin-Text eingeben..."
+                               class="flex-1 bg-darkbg-900 border border-gray-700 focus:border-amber-500 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none">
+                        <button type="button" onclick="toggleAdminMode()" id="admin-activate-btn"
+                                class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-semibold px-3.5 py-2 rounded-xl text-xs transition-colors">
+                            Aktivieren
+                        </button>
+                    </div>
+                    <p id="admin-status-text" class="text-[11px] text-gray-500 mt-1.5">
+                        Mit Admin-Rechten kannst du beliebige Dateien anderer Creator moderieren und löschen.
+                    </p>
                 </div>
 
                 <div class="flex justify-end gap-3 pt-2">
@@ -379,106 +398,10 @@
                     <h2 id="detail-title" class="text-lg sm:text-xl font-bold text-white truncate">Modell Titel</h2>
                 </div>
                 <button onclick="closeDetailModal()" class="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-darkbg-700 shrink-0">
-                    <i class="fa-solid fa-xmark text-xl"></i>
-                </button>
-            </div>
-
-            <!-- Scrollbarer Inhalt -->
-            <div class="p-6 overflow-y-auto space-y-6">
-                
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    <!-- Linke Spalte: Bild -->
-                    <div class="lg:col-span-7">
-                        <div class="rounded-xl overflow-hidden bg-darkbg-900 border border-gray-700 aspect-video flex items-center justify-center relative">
-                            <img id="detail-image" src="" alt="3D Modell Vorschau" class="w-full h-full object-cover">
-                            <span id="detail-file-ext-badge" class="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md text-brand-400 font-mono text-xs font-bold px-3 py-1 rounded-lg border border-brand-500/30">
-                                .STL
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- Rechte Spalte: Creator, Download & Specs -->
-                    <div class="lg:col-span-5 flex flex-col justify-between space-y-4">
-                        <div class="bg-darkbg-900/80 border border-gray-800 rounded-xl p-4 space-y-4">
-                            <!-- Creator Info -->
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-emerald-700 flex items-center justify-center text-white font-bold text-sm" id="detail-creator-avatar">
-                                        CR
-                                    </div>
-                                    <div>
-                                        <p class="text-xs text-gray-400">Erstellt von</p>
-                                        <p id="detail-creator-name" class="text-sm font-bold text-white">Creator Name</p>
-                                    </div>
-                                </div>
-                                <span id="detail-date" class="text-xs text-gray-500">Datum</span>
-                            </div>
-
-                            <!-- Download Box -->
-                            <div class="pt-2 border-t border-gray-800">
-                                <div class="flex items-center justify-between text-xs text-gray-400 mb-2">
-                                    <span class="truncate max-w-[180px]" id="detail-filename" title="Dateiname">datei.stl</span>
-                                    <span id="detail-filesize">124 KB</span>
-                                </div>
-                                <button id="detail-download-btn" class="w-full bg-brand-500 hover:bg-brand-600 text-darkbg-900 font-extrabold py-3 px-4 rounded-xl shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2 transition-all active:scale-95">
-                                    <i class="fa-solid fa-download"></i>
-                                    <span>3D-Datei herunterladen</span>
-                                </button>
-                            </div>
-
-                            <!-- Stats & Like Button -->
-                            <div class="flex items-center justify-between pt-2 border-t border-gray-800 text-sm">
-                                <button id="detail-like-btn" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-darkbg-800 hover:bg-darkbg-700 border border-gray-700 text-gray-300 transition-colors">
-                                    <i class="fa-solid fa-heart text-rose-500"></i>
-                                    <span id="detail-likes-count">0</span> Likes
-                                </button>
-                                <div class="text-gray-400 text-xs flex items-center gap-1.5">
-                                    <i class="fa-solid fa-arrow-down-to-line text-brand-400"></i>
-                                    <span id="detail-downloads-count">0</span> Downloads
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Druckprofil Übersicht -->
-                        <div class="bg-darkbg-900/60 border border-gray-800 rounded-xl p-4">
-                            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5">Druck-Spezifikationen</h4>
-                            <div class="grid grid-cols-2 gap-2 text-xs">
-                                <div class="bg-darkbg-800 p-2 rounded-lg">
-                                    <span class="text-gray-500 block">Material</span>
-                                    <span id="detail-material" class="font-semibold text-gray-200">PLA</span>
-                                </div>
-                                <div class="bg-darkbg-800 p-2 rounded-lg">
-                                    <span class="text-gray-500 block">Schichthöhe</span>
-                                    <span id="detail-layer" class="font-semibold text-gray-200">0.20 mm</span>
-                                </div>
-                                <div class="bg-darkbg-800 p-2 rounded-lg">
-                                    <span class="text-gray-500 block">Infill</span>
-                                    <span id="detail-infill" class="font-semibold text-gray-200">15%</span>
-                                </div>
-                                <div class="bg-darkbg-800 p-2 rounded-lg">
-                                    <span class="text-gray-500 block">Stützen</span>
-                                    <span id="detail-supports" class="font-semibold text-gray-200">Nein</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tutorial & Bauanleitung Bereich -->
-                <div class="bg-darkbg-900/70 border border-gray-800 rounded-xl p-5">
-                    <h3 class="text-base font-bold text-white flex items-center gap-2 mb-3 pb-2 border-b border-gray-800">
-                        <i class="fa-solid fa-book-open text-brand-500"></i>
-                        <span>Tutorial & Bauanleitung</span>
-                    </h3>
-                    <div id="detail-tutorial" class="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
-                        Anleitung wird geladen...
-                    </div>
-                </div>
-
-                <!-- Lösch-Option nur für den eigenen Creator -->
+                <!-- Lösch-Option für den eigenen Creator ODER Admin -->
                 <div id="detail-owner-actions" class="hidden justify-end pt-2">
                     <button id="detail-delete-btn" class="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/50 px-3 py-2 rounded-lg border border-rose-900/50 transition-colors flex items-center gap-1.5">
-                        <i class="fa-solid fa-trash-can"></i> Eigenes Modell löschen
+                        <i class="fa-solid fa-trash-can"></i> <span id="detail-delete-label">Eigenes Modell löschen</span>
                     </button>
                 </div>
 
@@ -487,7 +410,97 @@
     </div>
 
     <!-- ===================================================================== -->
-    <!-- FIREBASE & ANWENDUNGSLOGIK                                            -->
+    <!-- MODAL 4: AI FOTO ZU 3D-STL GENERATOR                                  -->
+    <!-- ===================================================================== -->
+    <div id="ai-stl-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-darkbg-800 border border-gray-700 rounded-2xl max-w-4xl w-full p-6 my-8 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-700 mb-5">
+                <h2 class="text-xl font-bold text-white flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <span>AI Foto → 3D-STL Generator</span>
+                </h2>
+                <button onclick="closeAiStlModal()" class="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-darkbg-700">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Linke Spalte: Foto Upload & Einstellungen -->
+                <div class="lg:col-span-5 space-y-4">
+                    <div onclick="document.getElementById('ai-photo-input').click()"
+                         class="border-2 border-dashed border-purple-500/50 hover:border-purple-400 bg-darkbg-900/70 rounded-xl p-5 text-center cursor-pointer transition-all">
+                        <input type="file" id="ai-photo-input" accept="image/*" class="hidden" onchange="handleAiPhotoUpload(this)">
+                        <i class="fa-solid fa-camera-retro text-3xl text-purple-400 mb-2"></i>
+                        <p id="ai-photo-label" class="text-sm font-semibold text-white">Foto oder Logo auswählen</p>
+                        <p class="text-xs text-gray-400 mt-1">Wandelt Helligkeit & Konturen automatisch in ein 3D-Relief / Lithophane-Mesh um.</p>
+                    </div>
+
+                    <div class="bg-darkbg-900/80 border border-gray-800 rounded-xl p-4 space-y-3">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-purple-400">3D-Mesh Einstellungen</h4>
+                        
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-300 mb-1">
+                                <span>Breite (mm)</span>
+                                <span id="ai-width-val" class="font-mono text-purple-400">80 mm</span>
+                            </div>
+                            <input type="range" id="ai-width-range" min="30" max="180" value="80" oninput="document.getElementById('ai-width-val').textContent = this.value + ' mm'; updateAiPreview()"
+                                   class="w-full accent-purple-500">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-300 mb-1">
+                                <span>Relief-Höhe (mm)</span>
+                                <span id="ai-height-val" class="font-mono text-purple-400">4.0 mm</span>
+                            </div>
+                            <input type="range" id="ai-height-range" min="1" max="15" step="0.5" value="4" oninput="document.getElementById('ai-height-val').textContent = parseFloat(this.value).toFixed(1) + ' mm'; updateAiPreview()"
+                                   class="w-full accent-purple-500">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-300 mb-1">
+                                <span>Detail-Auflösung</span>
+                                <span id="ai-res-val" class="font-mono text-purple-400">120 px</span>
+                            </div>
+                            <input type="range" id="ai-res-range" min="50" max="200" step="10" value="120" oninput="document.getElementById('ai-res-val').textContent = this.value + ' px'; updateAiPreview()"
+                                   class="w-full accent-purple-500">
+                        </div>
+
+                        <div class="flex items-center justify-between pt-1">
+                            <span class="text-xs text-gray-300">Höhenprofil invertieren (Lithophane)</span>
+                            <input type="checkbox" id="ai-invert-check" onchange="updateAiPreview()" class="w-4 h-4 accent-purple-500 rounded">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rechte Spalte: 3D-Höhenkarten-Vorschau & Export -->
+                <div class="lg:col-span-7 flex flex-col justify-between space-y-4">
+                    <div class="bg-darkbg-900 border border-gray-800 rounded-xl p-4 flex flex-col items-center justify-center min-h-[260px] relative">
+                        <span class="absolute top-3 left-3 text-[11px] font-semibold bg-purple-500/20 text-purple-300 px-2.5 py-1 rounded-lg">
+                            3D-Tiefenkarten-Vorschau
+                        </span>
+                        <canvas id="ai-preview-canvas" class="max-w-full max-h-[240px] rounded-lg shadow-lg border border-gray-800"></canvas>
+                        <p id="ai-empty-hint" class="text-xs text-gray-500">Lade links ein Foto hoch, um das 3D-Relief zu berechnen.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button type="button" onclick="downloadGeneratedStl()" id="ai-download-stl-btn" disabled
+                                class="disabled:opacity-40 disabled:cursor-not-allowed bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl text-sm shadow-lg shadow-purple-500/20 flex items-center justify-center gap-2 transition-all">
+                            <i class="fa-solid fa-file-arrow-down"></i>
+                            <span>Als .STL herunterladen</span>
+                        </button>
+                        <button type="button" onclick="useGeneratedStlForUpload()" id="ai-publish-stl-btn" disabled
+                                class="disabled:opacity-40 disabled:cursor-not-allowed bg-brand-500 hover:bg-brand-600 text-darkbg-900 font-bold py-3 px-4 rounded-xl text-sm shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2 transition-all">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>Direkt veröffentlichen</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ===================================================================== -->
     <!-- FIREBASE, CLOUD STORAGE, INDEXEDDB (GITHUB PAGES) & ANWENDUNGSLOGIK   -->
     <!-- ===================================================================== -->
@@ -498,6 +511,12 @@
         // Solange hier "null" steht, startet die Seite SOFORT ohne Ladezeit!
         // =========================================================================
         const CUSTOM_FIREBASE_CONFIG = null;
+
+        // =========================================================================
+        // GEHEIMER ADMIN-CODE: Gib diesen Text im Profil-Fenster ein, um Admin-
+        // Rechte zu erhalten und beliebige Dateien anderer Creator zu löschen.
+        // =========================================================================
+        const ADMIN_SECRET_CODE = "MAKERFORGE-ADMIN-2026";
 
         // 1. Globale App-Variablen & 100 GB Limit
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'makerforge-3d-github';
@@ -520,10 +539,12 @@
 
         let currentUser = null;
         let creatorName = localStorage.getItem('mf_creator_name') || ("Maker_" + Math.floor(1000 + Math.random() * 9000));
+        let isAdmin = localStorage.getItem('mf_is_admin') === 'true';
         let allModels = [];
         let activeCategory = "Alle";
         let selected3DFile = null;
         let selectedImageBase64 = "";
+        let aiSourceImage = null;
 
         // 2. Kategorien-Leiste & Dropdown initialisieren
         function initCategories() {
@@ -571,6 +592,7 @@
                 ? `${currentUser.uid} (Cloud-Sync)`
                 : `${currentUser.uid} (GitHub Pages / Lokaler 100GB-Speicher)`;
             updateHeaderProfileUI();
+            updateAdminUI();
 
             // Sofort lokale IndexedDB-Modelle laden & Ladebildschirm schließen
             await loadLocalIndexedDBModels();
@@ -687,6 +709,49 @@
             document.getElementById('creator-name-input').value = creatorName;
             document.getElementById('header-avatar').textContent = creatorName.substring(0, 2).toUpperCase();
         }
+
+        function updateAdminUI() {
+            const badge = document.getElementById('admin-header-badge');
+            const statusText = document.getElementById('admin-status-text');
+            const activateBtn = document.getElementById('admin-activate-btn');
+            const codeInput = document.getElementById('admin-code-input');
+
+            if (isAdmin) {
+                badge.classList.remove('hidden');
+                badge.classList.add('flex');
+                statusText.innerHTML = `<span class="text-amber-400 font-semibold"><i class="fa-solid fa-check-circle mr-1"></i>Admin-Modus aktiv:</span> Du kannst jetzt jedes Modell auf der Seite löschen.`;
+                activateBtn.textContent = "Deaktivieren";
+                codeInput.value = ADMIN_SECRET_CODE;
+            } else {
+                badge.classList.add('hidden');
+                badge.classList.remove('flex');
+                statusText.textContent = "Mit Admin-Rechten kannst du beliebige Dateien anderer Creator moderieren und löschen.";
+                activateBtn.textContent = "Aktivieren";
+            }
+        }
+
+        window.toggleAdminMode = function() {
+            const codeInput = document.getElementById('admin-code-input').value.trim();
+            if (isAdmin) {
+                isAdmin = false;
+                localStorage.setItem('mf_is_admin', 'false');
+                document.getElementById('admin-code-input').value = '';
+                updateAdminUI();
+                renderModels();
+                showToast("Admin-Modus deaktiviert.", "info");
+                return;
+            }
+
+            if (codeInput === ADMIN_SECRET_CODE) {
+                isAdmin = true;
+                localStorage.setItem('mf_is_admin', 'true');
+                updateAdminUI();
+                renderModels();
+                showToast("Admin-Rechte erfolgreich freigeschaltet!", "success");
+            } else {
+                showToast("Falscher Admin-Code!", "error");
+            }
+        };
 
         window.saveCreatorProfile = function(e) {
             e.preventDefault();
@@ -1052,9 +1117,13 @@
             document.getElementById('detail-like-btn').onclick = () => like3DModel(model);
 
             const ownerActions = document.getElementById('detail-owner-actions');
-            if (currentUser && model.creatorId === currentUser.uid) {
+            const deleteLabel = document.getElementById('detail-delete-label');
+            const isOwner = currentUser && model.creatorId === currentUser.uid;
+
+            if (isOwner || isAdmin) {
                 ownerActions.classList.remove('hidden');
                 ownerActions.classList.add('flex');
+                deleteLabel.textContent = isOwner ? "Eigenes Modell löschen" : "Modell löschen (Admin)";
                 document.getElementById('detail-delete-btn').onclick = () => deleteOwnModel(model.id);
             } else {
                 ownerActions.classList.add('hidden');
@@ -1069,6 +1138,225 @@
         window.closeUploadModal = () => document.getElementById('upload-modal').classList.add('hidden');
         window.openProfileModal = () => document.getElementById('profile-modal').classList.remove('hidden');
         window.closeProfileModal = () => document.getElementById('profile-modal').classList.add('hidden');
+        window.openAiStlModal = () => document.getElementById('ai-stl-modal').classList.remove('hidden');
+        window.closeAiStlModal = () => document.getElementById('ai-stl-modal').classList.add('hidden');
+
+        // =========================================================================
+        // 11. AI FOTO-ZU-3D-STL GENERATOR (HEIGHTMAP -> BINÄRE STL DATEI)
+        // =========================================================================
+        window.handleAiPhotoUpload = function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            document.getElementById('ai-photo-label').textContent = file.name;
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    aiSourceImage = img;
+                    document.getElementById('ai-empty-hint').classList.add('hidden');
+                    document.getElementById('ai-download-stl-btn').disabled = false;
+                    document.getElementById('ai-publish-stl-btn').disabled = false;
+                    updateAiPreview();
+                    showToast("Foto analysiert! 3D-Höhenrelief bereit.", "success");
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.updateAiPreview = function() {
+            if (!aiSourceImage) return;
+            const res = parseInt(document.getElementById('ai-res-range').value, 10);
+            const invert = document.getElementById('ai-invert-check').checked;
+            const canvas = document.getElementById('ai-preview-canvas');
+            const ctx = canvas.getContext('2d');
+
+            const aspect = aiSourceImage.height / aiSourceImage.width;
+            const w = res;
+            const h = Math.max(20, Math.round(res * aspect));
+            canvas.width = w;
+            canvas.height = h;
+
+            ctx.drawImage(aiSourceImage, 0, 0, w, h);
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+
+            // Visuelle 3D-Schattierung auf der Vorschau berechnen
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const idx = (y * w + x) * 4;
+                    let lum = (0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]) / 255;
+                    if (invert) lum = 1 - lum;
+                    const shade = Math.round(40 + lum * 215);
+                    data[idx] = Math.round(shade * 0.65);
+                    data[idx + 1] = Math.round(shade * 0.45);
+                    data[idx + 2] = shade;
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+        };
+
+        function buildBinaryStlBlob() {
+            const widthMm = parseFloat(document.getElementById('ai-width-range').value);
+            const reliefMm = parseFloat(document.getElementById('ai-height-range').value);
+            const res = parseInt(document.getElementById('ai-res-range').value, 10);
+            const invert = document.getElementById('ai-invert-check').checked;
+            const baseThickness = 1.2;
+
+            const offCanvas = document.createElement('canvas');
+            const aspect = aiSourceImage.height / aiSourceImage.width;
+            const cols = res;
+            const rows = Math.max(20, Math.round(res * aspect));
+            offCanvas.width = cols;
+            offCanvas.height = rows;
+
+            const ctx = offCanvas.getContext('2d');
+            ctx.drawImage(aiSourceImage, 0, 0, cols, rows);
+            const pixels = ctx.getImageData(0, 0, cols, rows).data;
+
+            const depthMm = widthMm * aspect;
+            const dx = widthMm / (cols - 1);
+            const dy = depthMm / (rows - 1);
+
+            const heights = new Float32Array(cols * rows);
+            for (let i = 0; i < cols * rows; i++) {
+                const p = i * 4;
+                let lum = (0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2]) / 255;
+                if (invert) lum = 1 - lum;
+                heights[i] = baseThickness + lum * reliefMm;
+            }
+
+            // Anzahl Dreiecke: Oberseite + Unterseite + 4 Seitenwände
+            const topTris = (cols - 1) * (rows - 1) * 2;
+            const bottomTris = (cols - 1) * (rows - 1) * 2;
+            const sideTris = ((cols - 1) * 2 + (rows - 1) * 2) * 2;
+            const totalTris = topTris + bottomTris + sideTris;
+
+            const buffer = new ArrayBuffer(84 + totalTris * 50);
+            const view = new DataView(buffer);
+            view.setUint32(80, totalTris, true);
+
+            let offset = 84;
+            function writeTriangle(x1, y1, z1, x2, y2, z2, x3, y3, z3) {
+                const ux = x2 - x1, uy = y2 - y1, uz = z2 - z1;
+                const vx = x3 - x1, vy = y3 - y1, vz = z3 - z1;
+                let nx = uy * vz - uz * vy;
+                let ny = uz * vx - ux * vz;
+                let nz = ux * vy - uy * vx;
+                const len = Math.hypot(nx, ny, nz) || 1;
+                nx /= len; ny /= len; nz /= len;
+
+                view.setFloat32(offset, nx, true); offset += 4;
+                view.setFloat32(offset, ny, true); offset += 4;
+                view.setFloat32(offset, nz, true); offset += 4;
+
+                view.setFloat32(offset, x1, true); offset += 4;
+                view.setFloat32(offset, y1, true); offset += 4;
+                view.setFloat32(offset, z1, true); offset += 4;
+
+                view.setFloat32(offset, x2, true); offset += 4;
+                view.setFloat32(offset, y2, true); offset += 4;
+                view.setFloat32(offset, z2, true); offset += 4;
+
+                view.setFloat32(offset, x3, true); offset += 4;
+                view.setFloat32(offset, y3, true); offset += 4;
+                view.setFloat32(offset, z3, true); offset += 4;
+
+                view.setUint16(offset, 0, true); offset += 2;
+            }
+
+            for (let y = 0; y < rows - 1; y++) {
+                for (let x = 0; x < cols - 1; x++) {
+                    const x0 = x * dx, x1 = (x + 1) * dx;
+                    const y0 = (rows - 1 - y) * dy, y1 = (rows - 2 - y) * dy;
+
+                    const z00 = heights[y * cols + x];
+                    const z10 = heights[y * cols + (x + 1)];
+                    const z01 = heights[(y + 1) * cols + x];
+                    const z11 = heights[(y + 1) * cols + (x + 1)];
+
+                    // Oberseite
+                    writeTriangle(x0, y0, z00, x1, y0, z10, x1, y1, z11);
+                    writeTriangle(x0, y0, z00, x1, y1, z11, x0, y1, z01);
+
+                    // Unterseite (Z = 0)
+                    writeTriangle(x0, y0, 0, x1, y1, 0, x1, y0, 0);
+                    writeTriangle(x0, y0, 0, x0, y1, 0, x1, y1, 0);
+                }
+            }
+
+            // Seitenwände schließen für wasserdichten 3D-Druck
+            for (let x = 0; x < cols - 1; x++) {
+                const x0 = x * dx, x1 = (x + 1) * dx;
+                const yTop = (rows - 1) * dy;
+                const zT0 = heights[x], zT1 = heights[x + 1];
+                writeTriangle(x0, yTop, 0, x1, yTop, 0, x1, yTop, zT1);
+                writeTriangle(x0, yTop, 0, x1, yTop, zT1, x0, yTop, zT0);
+
+                const zB0 = heights[(rows - 1) * cols + x], zB1 = heights[(rows - 1) * cols + x + 1];
+                writeTriangle(x0, 0, 0, x1, 0, zB1, x1, 0, 0);
+                writeTriangle(x0, 0, 0, x0, 0, zB0, x1, 0, zB1);
+            }
+
+            for (let y = 0; y < rows - 1; y++) {
+                const y0 = (rows - 1 - y) * dy, y1 = (rows - 2 - y) * dy;
+                const xRight = (cols - 1) * dx;
+                const zL0 = heights[y * cols], zL1 = heights[(y + 1) * cols];
+                writeTriangle(0, y0, 0, 0, y1, zL1, 0, y1, 0);
+                writeTriangle(0, y0, 0, 0, y0, zL0, 0, y1, zL1);
+
+                const zR0 = heights[y * cols + (cols - 1)], zR1 = heights[(y + 1) * cols + (cols - 1)];
+                writeTriangle(xRight, y0, 0, xRight, y1, 0, xRight, y1, zR1);
+                writeTriangle(xRight, y0, 0, xRight, y1, zR1, xRight, y0, zR0);
+            }
+
+            return new Blob([buffer], { type: 'application/octet-stream' });
+        }
+
+        window.downloadGeneratedStl = function() {
+            if (!aiSourceImage) return;
+            const blob = buildBinaryStlBlob();
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `makerforge_ai_relief_${Date.now()}.stl`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            showToast("3D-STL Datei wurde generiert und heruntergeladen!", "success");
+        };
+
+        window.useGeneratedStlForUpload = function() {
+            if (!aiSourceImage) return;
+            const blob = buildBinaryStlBlob();
+            const fileName = `ai_photo_relief_${Date.now()}.stl`;
+            const stlFile = new File([blob], fileName, { type: 'application/octet-stream' });
+
+            selected3DFile = {
+                name: fileName,
+                ext: 'STL',
+                size: formatBytes(stlFile.size),
+                rawFile: stlFile
+            };
+
+            const previewDataUrl = document.getElementById('ai-preview-canvas').toDataURL('image/png');
+            selectedImageBase64 = previewDataUrl;
+
+            closeAiStlModal();
+            openUploadModal();
+
+            const dropZone = document.getElementById('file-drop-zone');
+            dropZone.classList.remove('border-rose-500', 'border-gray-600');
+            dropZone.classList.add('border-brand-500', 'bg-brand-500/5');
+            document.getElementById('file-selected-name').innerHTML = `<i class="fa-solid fa-check-circle text-brand-400 mr-1"></i> <span class="text-white font-bold">${escapeHtml(fileName)}</span>`;
+            document.getElementById('file-selected-meta').textContent = `Format: .STL • Größe: ${formatBytes(stlFile.size)} • AI Foto-Relief bereit`;
+            document.getElementById('image-preview-img').src = previewDataUrl;
+            document.getElementById('image-preview-container').classList.remove('hidden');
+            document.getElementById('model-title').value = "AI Foto-Relief 3D-Druck";
+            document.getElementById('model-tutorial').value = "Dieses 3D-Relief wurde mit dem MakerForge AI Foto-Generator erstellt.\n\nEmpfohlene Druckeinstellungen:\n- Flach auf das Druckbett legen (keine Stützstrukturen nötig).\n- Für Lithophane-Effekt mit 100% Infill und weißem PLA drucken.";
+            showToast("Generierte STL-Datei in das Upload-Formular übernommen!", "success");
+        };
 
         window.clearSearch = function() {
             document.getElementById('search-input').value = '';
