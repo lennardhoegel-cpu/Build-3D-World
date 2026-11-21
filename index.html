@@ -121,7 +121,7 @@
                     </button>
 
                     <!-- Cloud / Community Sync Status -->
-                    <span id="sync-status-badge" onclick="openProfileModal()" class="hidden md:flex cursor-pointer items-center gap-1.5 bg-darkbg-800 border border-gray-700 px-2.5 py-2 rounded-xl text-[11px] font-semibold text-gray-400 hover:text-white transition-all" title="Verbindungsstatus der Community-Datenbank">
+                    <span id="sync-status-badge" onclick="openCloudSetupModal()" class="hidden md:flex cursor-pointer items-center gap-1.5 bg-darkbg-800 border border-gray-700 hover:border-brand-500/60 px-2.5 py-2 rounded-xl text-[11px] font-semibold text-gray-300 hover:text-white transition-all" title="Klicken, um globale Datenbank für alle Besucher zu verbinden">
                         <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
                         <span id="sync-status-text">Verbinde...</span>
                     </span>
@@ -600,12 +600,58 @@
     </div>
 
     <!-- ===================================================================== -->
+    <!-- MODAL 4: GLOBALE DATENBANK VERBINDEN (DAMIT JEDER ALLES SIEHT)          -->
+    <!-- ===================================================================== -->
+    <div id="cloud-setup-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-darkbg-800 border border-gray-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-700 pb-3">
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-globe text-brand-400"></i>
+                    <span>Globale Community-Datenbank (Für alle Besucher)</span>
+                </h2>
+                <button onclick="closeCloudSetupModal()" class="text-gray-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div id="cloud-active-info" class="hidden bg-brand-500/15 border border-brand-500/40 rounded-xl p-3.5 text-xs text-brand-200">
+                <strong class="block text-brand-400 mb-1"><i class="fa-solid fa-circle-check mr-1"></i> Globale Cloud ist AKTIV!</strong>
+                Alle veröffentlichten 3D-Modelle, Likes, Saves und Follower werden dauerhaft gespeichert und sind für alle Besucher weltweit sichtbar.
+            </div>
+
+            <div class="text-xs text-gray-300 space-y-2 leading-relaxed">
+                <p><strong>Warum braucht GitHub Pages eine Datenbank?</strong> GitHub Pages ist ein reiner Datei-Hoster ohne eigenen Speicher. Ohne zentrale Datenbank bleiben Modelle nur im eigenen Browser.</p>
+                <p class="text-gray-400">So machst du deine GitHub-Pages-Seite in 1 Minute dauerhaft für <strong>alle Besucher weltweit</strong> live:</p>
+                <ol class="list-decimal list-inside space-y-1 text-gray-300 bg-darkbg-900 p-3 rounded-xl border border-gray-800">
+                    <li>Erstelle ein kostenloses Projekt auf <a href="https://console.firebase.google.com/" target="_blank" class="text-brand-400 underline">console.firebase.google.com</a>.</li>
+                    <li>Aktiviere dort <strong>Firestore Database</strong> (im Testmodus) und <strong>Authentication → Anonym</strong>.</li>
+                    <li>Kopiere deine <code>firebaseConfig</code> (das <code>{ apiKey: "...", ... }</code> Objekt) unten hinein oder fest oben in die HTML-Datei bei <code>CUSTOM_FIREBASE_CONFIG</code>.</li>
+                </ol>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Firebase Config JSON einfügen</label>
+                <textarea id="firebase-config-textarea" rows="5" placeholder='{"apiKey": "AIza...", "authDomain": "...", "projectId": "...", "storageBucket": "...", "appId": "..."}'
+                          class="w-full bg-darkbg-900 border border-gray-700 focus:border-brand-500 rounded-xl p-3 font-mono text-xs text-gray-200 focus:outline-none"></textarea>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+                <button type="button" onclick="resetSavedCloudConfig()" class="text-xs text-rose-400 hover:underline">Gespeicherte Config löschen</button>
+                <div class="flex gap-2">
+                    <button type="button" onclick="closeCloudSetupModal()" class="px-4 py-2 rounded-xl text-xs font-medium text-gray-300 hover:bg-darkbg-700">Schließen</button>
+                    <button type="button" onclick="saveAndConnectCustomCloud()" class="bg-brand-500 hover:bg-brand-600 text-darkbg-950 font-bold px-4 py-2 rounded-xl text-xs">Verbinden & Speichern</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
     <!-- FIREBASE, CLOUD STORAGE, INDEXEDDB (GITHUB PAGES) & ANWENDUNGSLOGIK   -->
     <!-- ===================================================================== -->
     <script>
         // =========================================================================
-        // FÜR GITHUB PAGES: Trage hier optional deine eigenen Firebase-Daten ein,
-        // wenn du die Seite auf GitHub Pages mit weltweiter Cloud-Sync nutzt.
+        // FÜR GITHUB PAGES: Trage hier deine eigenen Firebase-Daten ein, damit
+        // ALLE Besucher weltweit dauerhaft alle 3D-Modelle sehen!
         // =========================================================================
         const CUSTOM_FIREBASE_CONFIG = null;
 
@@ -621,6 +667,12 @@
         const ALLOWED_3D_EXTENSIONS = ['stl', '3mf', 'obj', 'step', 'stp', 'amf', 'gcode'];
 
         let resolvedFirebaseConfig = CUSTOM_FIREBASE_CONFIG;
+        if (!resolvedFirebaseConfig) {
+            try {
+                const storedCfg = localStorage.getItem('mf_custom_firebase_config');
+                if (storedCfg) resolvedFirebaseConfig = JSON.parse(storedCfg);
+            } catch (e) {}
+        }
         if (!resolvedFirebaseConfig && typeof __firebase_config !== 'undefined' && __firebase_config) {
             try {
                 resolvedFirebaseConfig = typeof __firebase_config === 'string'
@@ -642,7 +694,7 @@
             { id: "Cosplay", label: "Cosplay & Requisiten", icon: "fa-mask" }
         ];
 
-        let isCloudMode = Boolean(CUSTOM_FIREBASE_CONFIG && CUSTOM_FIREBASE_CONFIG.apiKey);
+        let isCloudMode = Boolean(resolvedFirebaseConfig && resolvedFirebaseConfig.apiKey);
         let db = null, storage = null, firestoreFns = null, storageFns = null;
 
         let currentUser = null;
@@ -660,9 +712,6 @@
         let selected3DFile = null;
         let selectedImageBase64 = "";
 
-        // Öffentlicher Community-Sync für GitHub Pages (wenn kein eigenes Firebase eingetragen ist)
-        const PUBLIC_RELAY_BUCKET = "https://kvdb.io/A5x9MakerForge3DGlobal";
-
         function updateSyncStatusBadge(mode) {
             const dot = document.getElementById('sync-status-dot');
             const text = document.getElementById('sync-status-text');
@@ -671,16 +720,63 @@
             if (mode === 'cloud') {
                 dot.className = "w-2 h-2 rounded-full bg-brand-400 animate-pulse";
                 text.textContent = "Global Cloud Live";
-            } else if (mode === 'relay') {
-                dot.className = "w-2 h-2 rounded-full bg-sky-400 animate-pulse";
-                text.textContent = "Community Sync";
             } else {
                 dot.className = "w-2 h-2 rounded-full bg-amber-400";
-                text.textContent = "Lokaler Speicher";
+                text.textContent = "Cloud einrichten";
             }
         }
 
-        // 3. App-Start: Sofortiger Start ohne Lade-Hänger
+        function openCloudSetupModal() {
+            const infoBox = document.getElementById('cloud-active-info');
+            if (isCloudMode) {
+                infoBox.classList.remove('hidden');
+            } else {
+                infoBox.classList.add('hidden');
+            }
+            const saved = localStorage.getItem('mf_custom_firebase_config') || '';
+            document.getElementById('firebase-config-textarea').value = saved;
+            document.getElementById('cloud-setup-modal').classList.remove('hidden');
+        }
+
+        function closeCloudSetupModal() {
+            document.getElementById('cloud-setup-modal').classList.add('hidden');
+        }
+
+        async function saveAndConnectCustomCloud() {
+            const raw = document.getElementById('firebase-config-textarea').value.trim();
+            if (!raw) {
+                showToast("Bitte füge zuerst deine Firebase Config ein!", "error");
+                return;
+            }
+            try {
+                // Erlaubt sowohl reines JSON als auch JS-Objekt-Syntax
+                const normalized = raw
+                    .replace(/^[^{]*/, '')
+                    .replace(/[^}]*$/, '')
+                    .replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":')
+                    .replace(/'/g, '"');
+                const parsed = JSON.parse(normalized);
+                if (!parsed.apiKey || !parsed.projectId) {
+                    throw new Error("apiKey oder projectId fehlt.");
+                }
+                localStorage.setItem('mf_custom_firebase_config', JSON.stringify(parsed));
+                resolvedFirebaseConfig = parsed;
+                isCloudMode = true;
+                closeCloudSetupModal();
+                showToast("Verbinde mit deiner globalen Datenbank...", "info");
+                await connectMakerForgeCloud();
+            } catch (e) {
+                showToast("Ungültiges Format! Bitte kopiere das { apiKey: ..., projectId: ... } Objekt.", "error");
+            }
+        }
+
+        function resetSavedCloudConfig() {
+            localStorage.removeItem('mf_custom_firebase_config');
+            showToast("Gespeicherte Cloud-Config entfernt. Seite wird neu geladen...", "info");
+            setTimeout(() => location.reload(), 800);
+        }
+
+        // 3. App-Start: Sofortiger Start + dauerhafte Cloud-Verbindung
         async function initApp() {
             initCategories();
 
@@ -688,109 +784,26 @@
             localStorage.setItem('mf_local_uid', savedLocalId);
             currentUser = { uid: savedLocalId };
 
-            // Ladebildschirm sofort ausblenden, damit die Seite niemals hängen bleibt
             const loadingEl = document.getElementById('loading-state');
             if (loadingEl) loadingEl.classList.add('hidden');
 
             document.getElementById('display-user-id').textContent = isCloudMode
-                ? "Verbinde mit eigener Firebase Cloud..."
-                : `${currentUser.uid} (Sofort-Modus aktiv)`;
+                ? "Verbinde mit globaler Cloud..."
+                : `${currentUser.uid} (Lokaler Speicher – klicke oben auf 'Cloud einrichten')`;
             updateHeaderProfileUI();
             updateAdminUI();
 
-            // Zuerst sofort lokale Modelle laden & anzeigen
+            // Lokalen Speicher sofort laden, damit nichts jemals verschwindet
             await loadLocalIndexedDBModels();
 
             if (isCloudMode) {
                 await connectMakerForgeCloud();
             } else {
-                updateSyncStatusBadge('relay');
-                syncPublicCommunityFeed();
-                setInterval(syncPublicCommunityFeed, 8000);
-            }
-        }
-
-        // Öffentlicher Community-Feed für GitHub Pages (damit alle Besucher Modelle voneinander sehen)
-        async function syncPublicCommunityFeed() {
-            try {
-                const res = await fetch(`${PUBLIC_RELAY_BUCKET}/models_index`, { cache: 'no-store' });
-                if (!res.ok) {
-                    updateSyncStatusBadge('local');
-                    return;
-                }
-                const remoteList = await res.json();
-                if (Array.isArray(remoteList)) {
-                    updateSyncStatusBadge('relay');
-                    let changed = false;
-                    for (const remoteModel of remoteList) {
-                        const existingIdx = allModels.findIndex(m => m.id === remoteModel.id);
-                        if (existingIdx === -1) {
-                            allModels.push(remoteModel);
-                            await saveLocalIndexedDBModel(remoteModel);
-                            changed = true;
-                        } else {
-                            // Kennzahlen (Likes, Saves, Downloads, Follower) vom Server übernehmen
-                            const localM = allModels[existingIdx];
-                            if ((remoteModel.likes || 0) !== (localM.likes || 0) ||
-                                (remoteModel.saves || 0) !== (localM.saves || 0) ||
-                                (remoteModel.downloads || 0) !== (localM.downloads || 0) ||
-                                (remoteModel.creatorFollowers || 0) !== (localM.creatorFollowers || 0)) {
-                                allModels[existingIdx] = { ...localM, ...remoteModel, fileBlob: localM.fileBlob };
-                                await saveLocalIndexedDBModel(allModels[existingIdx]);
-                                changed = true;
-                            }
-                        }
-                    }
-                    // Gelöschte Modelle entfernen
-                    const remoteIds = new Set(remoteList.map(r => r.id));
-                    const beforeLen = allModels.length;
-                    allModels = allModels.filter(m => remoteIds.has(m.id) || m.isLocalOnly);
-                    if (allModels.length !== beforeLen) changed = true;
-
-                    if (changed) {
-                        updateTabCounters();
-                        renderModels();
-                    }
-                }
-            } catch (e) {
                 updateSyncStatusBadge('local');
             }
         }
 
-        async function pushPublicCommunityFeed() {
-            try {
-                // Für den schnellen Community-Sync speichern wir Metadaten + kompakte STL/3MF-Dateien (bis 2 MB) direkt mit
-                const shareableList = allModels.map(m => {
-                    const copy = { ...m };
-                    delete copy.fileBlob;
-                    return copy;
-                });
-                await fetch(`${PUBLIC_RELAY_BUCKET}/models_index`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(shareableList)
-                });
-                updateSyncStatusBadge('relay');
-            } catch (e) {
-                console.warn("Community-Relay nicht erreichbar:", e);
-            }
-        }
-
         async function connectMakerForgeCloud() {
-            const loadingEl = document.getElementById('loading-state');
-            let cloudResolved = false;
-
-            // Sicherheits-Timeout (4 Sekunden), falls Cloud-Dienst blockiert ist (z.B. GitHub Pages ohne Regeln)
-            const fallbackTimer = setTimeout(async () => {
-                if (!cloudResolved) {
-                    console.warn("Cloud-Zeitüberschreitung – wechsle auf Community-Sync Speicher.");
-                    isCloudMode = false;
-                    document.getElementById('display-user-id').textContent = `${currentUser.uid} (Community-Sync)`;
-                    await loadLocalIndexedDBModels();
-                    await syncPublicCommunityFeed();
-                }
-            }, 4000);
-
             try {
                 const [{ initializeApp }, authMod, fsMod] = await Promise.all([
                     import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"),
@@ -803,7 +816,7 @@
                 db = fsMod.getFirestore(app);
                 firestoreFns = fsMod;
 
-                // Optional Firebase Storage laden (falls konfiguriert)
+                // Optional Firebase Storage laden (für Dateien > 1 MB)
                 try {
                     const stMod = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js");
                     storage = stMod.getStorage(app);
@@ -823,39 +836,48 @@
                 if (!user) throw new Error("Kein authentifizierter Benutzer erhalten.");
 
                 currentUser = user;
-                document.getElementById('display-user-id').textContent = `${user.uid} (MakerForge Cloud aktiv)`;
+                document.getElementById('display-user-id').textContent = `${user.uid} (Global Cloud Live)`;
                 updateSyncStatusBadge('cloud');
 
+                // Bereits lokal vorhandene Modelle automatisch in die globale Cloud hochladen
                 const modelsCol = fsMod.collection(db, 'artifacts', appId, 'public', 'data', 'models3d');
-                fsMod.onSnapshot(modelsCol, async (snapshot) => {
-                    cloudResolved = true;
-                    clearTimeout(fallbackTimer);
-                    if (loadingEl) loadingEl.classList.add('hidden');
-                    updateSyncStatusBadge('cloud');
+                for (const localM of allModels) {
+                    const cleanDoc = { ...localM };
+                    delete cleanDoc.fileBlob;
+                    fsMod.setDoc(fsMod.doc(modelsCol, localM.id), cleanDoc, { merge: true }).catch(() => {});
+                }
 
-                    allModels = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                    // Synchronisiere auch den lokalen Backup-Speicher, damit Modelle nie verloren gehen
+                // Echtzeit-Listener: Jedes Modell von jedem Creator wird sofort für alle angezeigt
+                fsMod.onSnapshot(modelsCol, (snapshot) => {
+                    updateSyncStatusBadge('cloud');
+                    const cloudModels = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                    // Lokale Blobs erhalten, falls das Modell auf diesem Gerät erstellt wurde
+                    const blobMap = new Map();
+                    allModels.forEach(m => {
+                        if (m.fileBlob) blobMap.set(m.id, m.fileBlob);
+                    });
+
+                    allModels = cloudModels.map(cm => ({
+                        ...cm,
+                        ...(blobMap.has(cm.id) ? { fileBlob: blobMap.get(cm.id) } : {})
+                    }));
+
                     for (const m of allModels) {
                         saveLocalIndexedDBModel(m).catch(() => {});
                     }
                     updateTabCounters();
                     renderModels();
-                }, async (err) => {
+                }, (err) => {
                     console.error("Firestore Snapshot Fehler:", err);
-                    cloudResolved = true;
-                    clearTimeout(fallbackTimer);
-                    isCloudMode = false;
-                    await loadLocalIndexedDBModels();
-                    await syncPublicCommunityFeed();
+                    updateSyncStatusBadge('local');
+                    showToast("Cloud-Lesefehler: Prüfe die Firestore-Regeln.", "error");
                 });
             } catch (err) {
                 console.error("Cloud-Verbindungsfehler:", err);
-                cloudResolved = true;
-                clearTimeout(fallbackTimer);
                 isCloudMode = false;
-                document.getElementById('display-user-id').textContent = `${currentUser.uid} (Community-Sync)`;
-                await loadLocalIndexedDBModels();
-                await syncPublicCommunityFeed();
+                updateSyncStatusBadge('local');
+                document.getElementById('display-user-id').textContent = `${currentUser.uid} (Lokaler Speicher)`;
             }
         }
 
@@ -901,14 +923,12 @@
                     createdAt: Date.now()
                 };
 
-                // Kompakte Dateien (bis 2.5 MB) zusätzlich als Base64 sichern (funktioniert in allen Browsern/Iframes)
+                // Kompakte Dateien (bis 750 KB) direkt als Base64 in Firestore speichern, damit JEDER sie ohne Storage herunterladen kann
                 let inlineBase64 = null;
-                if (selected3DFile.rawFile.size <= 2.5 * 1024 * 1024) {
+                if (selected3DFile.rawFile.size <= 750 * 1024) {
                     try {
                         inlineBase64 = await fileToBase64(selected3DFile.rawFile);
-                    } catch (b64Err) {
-                        console.warn("Base64-Konvertierung übersprungen:", b64Err);
-                    }
+                    } catch (b64Err) {}
                 }
 
                 const localModelRecord = {
@@ -923,7 +943,7 @@
                 updateTabCounters();
                 renderModels();
 
-                // 2. Lokal in IndexedDB sichern (mit Fallback ohne Blob, falls Browser-Iframe Blobs blockiert)
+                // 2. Lokal in IndexedDB sichern
                 try {
                     await saveLocalIndexedDBModel(localModelRecord);
                 } catch (idbErr) {
@@ -932,37 +952,35 @@
                     await saveLocalIndexedDBModel(fallbackRecord).catch(() => {});
                 }
 
-                // 3. Optional in eigener Firebase Cloud speichern
+                // 3. In der globalen Cloud-Datenbank speichern (damit JEDER Besucher es dauerhaft sieht)
                 if (isCloudMode && firestoreFns && db) {
-                    try {
-                        const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
-                        if (storageFns && storage) {
-                            const uniquePath = `artifacts/${appId}/public/models3d/${persistentId}_${selected3DFile.name}`;
-                            const fileRef = storageFns.ref(storage, uniquePath);
-                            await storageFns.uploadBytes(fileRef, selected3DFile.rawFile);
-                            const downloadUrl = await storageFns.getDownloadURL(fileRef);
+                    const modelDocRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', persistentId);
+                    if (storageFns && storage && selected3DFile.rawFile.size > 750 * 1024) {
+                        const uniquePath = `artifacts/${appId}/public/models3d/${persistentId}_${selected3DFile.name}`;
+                        const fileRef = storageFns.ref(storage, uniquePath);
+                        await storageFns.uploadBytes(fileRef, selected3DFile.rawFile);
+                        const downloadUrl = await storageFns.getDownloadURL(fileRef);
 
-                            await firestoreFns.setDoc(modelDocRef, {
-                                ...baseModelData,
-                                fileDownloadUrl: downloadUrl,
-                                storagePath: uniquePath
-                            });
-                        } else {
-                            await firestoreFns.setDoc(modelDocRef, {
-                                ...baseModelData,
-                                ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
-                            });
-                        }
-                    } catch (cloudErr) {
-                        console.warn("Cloud-Sync im Hintergrund:", cloudErr);
+                        await firestoreFns.setDoc(modelDocRef, {
+                            ...baseModelData,
+                            fileDownloadUrl: downloadUrl,
+                            storagePath: uniquePath
+                        });
+                    } else {
+                        await firestoreFns.setDoc(modelDocRef, {
+                            ...baseModelData,
+                            ...(inlineBase64 ? { fileDataBase64: inlineBase64 } : {})
+                        });
                     }
-                } else {
-                    // 4. Community-Sync im Hintergrund anstoßen (blockiert nicht das Modal)
-                    pushPublicCommunityFeed().catch(() => {});
                 }
 
                 closeUploadModal();
-                showToast("Dein 3D-Modell wurde erfolgreich veröffentlicht!", "success");
+                showToast(
+                    isCloudMode
+                        ? "Modell dauerhaft für alle Besucher veröffentlicht!"
+                        : "Modell lokal gespeichert! Klicke oben auf 'Cloud einrichten', damit auch andere Besucher es sehen.",
+                    "success"
+                );
             } catch (err) {
                 console.error("Upload-Fehler:", err);
                 showToast("Fehler beim Veröffentlichen des Modells: " + err.message, "error");
@@ -1367,12 +1385,10 @@
                 // 1. Immer dauerhaft lokal in IndexedDB sichern
                 await saveLocalIndexedDBModel(model);
 
-                // 2. Zusätzlich in der Cloud-Datenbank aktualisieren (für alle anderen Besucher)
+                // 2. Zusätzlich in der globalen Cloud-Datenbank aktualisieren (für alle anderen Besucher)
                 if (isCloudMode && firestoreFns && db) {
                     const modelRef = firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', model.id);
                     await firestoreFns.setDoc(modelRef, fields, { merge: true });
-                } else {
-                    await pushPublicCommunityFeed();
                 }
             } catch (err) {
                 console.error("Fehler beim Aktualisieren der Modell-Statistiken:", err);
@@ -1594,12 +1610,10 @@
                         } catch (e) {}
                     }
                     await firestoreFns.deleteDoc(firestoreFns.doc(db, 'artifacts', appId, 'public', 'data', 'models3d', modelId));
-                } else {
-                    await pushPublicCommunityFeed();
                 }
                 await loadLocalIndexedDBModels();
                 closeDetailModal();
-                showToast("Dein Modell wurde gelöscht.", "info");
+                showToast("Das Modell wurde dauerhaft gelöscht.", "info");
             } catch (err) {
                 console.error("Lösch-Fehler:", err);
                 showToast("Fehler beim Löschen des Modells.", "error");
